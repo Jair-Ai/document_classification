@@ -139,3 +139,76 @@ class TestDegradedMode:
 
         assert response.status_code == 503
         assert response.json() == {"detail": "Model is unavailable"}
+
+
+class TestClassifyFile:
+    @staticmethod
+    def _upload(name: str, content: bytes) -> dict[str, tuple[str, bytes, str]]:
+        return {"file": (name, content, "text/plain")}
+
+    def test_txt_upload_returns_full_response(self, client: TestClient) -> None:
+        response = client.post(
+            "/classify-file", files=self._upload("doc.txt", VALID_TEXT.encode("utf-8"))
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert set(body) == RESPONSE_FIELDS
+        assert body["message"] == "Classification successful"
+        assert 0.0 <= body["confidence"] <= 1.0
+        assert body["decision"] in VALID_DECISIONS
+        assert len(body["top_k"]) == 3
+
+    def test_top_k_query_param_is_respected(self, client: TestClient) -> None:
+        response = client.post(
+            "/classify-file",
+            params={"top_k": 2},
+            files=self._upload("doc.txt", VALID_TEXT.encode("utf-8")),
+        )
+
+        assert response.status_code == 200
+        assert len(response.json()["top_k"]) == 2
+
+    def test_non_txt_extension_returns_400(self, client: TestClient) -> None:
+        response = client.post(
+            "/classify-file", files=self._upload("doc.pdf", b"not a text file")
+        )
+
+        assert response.status_code == 400
+        assert response.json() == {"detail": "Only .txt files are supported"}
+
+    def test_missing_file_returns_422(self, client: TestClient) -> None:
+        response = client.post("/classify-file")
+
+        assert response.status_code == 422
+
+    def test_whitespace_only_file_returns_400(self, client: TestClient) -> None:
+        response = client.post("/classify-file", files=self._upload("doc.txt", b"  \n\t "))
+
+        assert response.status_code == 400
+        assert response.json() == {"detail": "document_text must not be empty"}
+
+    def test_invalid_utf8_bytes_are_ignored(self, client: TestClient) -> None:
+        content = VALID_TEXT.encode("utf-8") + b"\xff\xfe\xff"
+
+        response = client.post("/classify-file", files=self._upload("doc.txt", content))
+
+        assert response.status_code == 200
+        assert response.json()["message"] == "Classification successful"
+
+    def test_oversized_file_returns_422(self, client: TestClient) -> None:
+        response = client.post(
+            "/classify-file", files=self._upload("doc.txt", b"a" * 100_001)
+        )
+
+        assert response.status_code == 422
+
+    def test_file_upload_without_model_returns_503(
+        self, degraded_client: TestClient
+    ) -> None:
+        response = degraded_client.post(
+            "/classify-file", files=self._upload("doc.txt", VALID_TEXT.encode("utf-8"))
+        )
+
+        assert response.status_code == 503
+        assert response.json() == {"detail": "Model is unavailable"}
