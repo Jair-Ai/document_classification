@@ -1,0 +1,14 @@
+# Virtual environments
+.venv/
+
+# Model artifacts (large binaries; reproducible via src/train.py)
+models/*.joblib
+
+# Python caches
+__pycache__/
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+
+# Note: reports/*.csv, reports/*.json, and reports/*.txt are deliberately
+# tracked — small generated report artifacts are part of the deliverable.
