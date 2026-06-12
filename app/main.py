@@ -13,10 +13,11 @@ import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, File, HTTPException, Query, Request, Response, UploadFile
 
+from app.config import settings
 from app.model_loader import load_bundle
 from app.schemas import ClassificationRequest, ClassificationResponse
 from src.predict import predict_text
@@ -81,11 +82,10 @@ def health(request: Request) -> dict[str, Any]:
     }
 
 
-@app.post("/classify_document", response_model=ClassificationResponse)
-def classify_document(payload: ClassificationRequest, request: Request) -> ClassificationResponse:
-    """Classify a single document and route it by confidence.
+def _classify(text: str, top_k: int, request: Request) -> ClassificationResponse:
+    """Shared classification path for the JSON and file-upload endpoints.
 
-    Returns 503 while the model is unavailable, 400 for whitespace-only
+    Raises 503 while the model is unavailable, 400 for whitespace-only
     text, and 500 (with the real error logged server-side only) if
     inference fails unexpectedly.
     """
@@ -93,13 +93,12 @@ def classify_document(payload: ClassificationRequest, request: Request) -> Class
     if bundle is None:
         raise HTTPException(status_code=503, detail="Model is unavailable")
 
-    text = payload.document_text
     if not text.strip():
         raise HTTPException(status_code=400, detail="document_text must not be empty")
 
     # The schema caps top_k at the configured maximum; additionally clamp
     # it to the number of labels the model was actually trained on.
-    top_k = min(payload.top_k, len(bundle["trained_labels"]))
+    top_k = min(top_k, len(bundle["trained_labels"]))
 
     try:
         result = predict_text(text, bundle, top_k=top_k)
@@ -123,3 +122,41 @@ def classify_document(payload: ClassificationRequest, request: Request) -> Class
     }
 
     return ClassificationResponse(message="Classification successful", **result)
+
+
+@app.post("/classify_document", response_model=ClassificationResponse)
+def classify_document(payload: ClassificationRequest, request: Request) -> ClassificationResponse:
+    """Classify a single document submitted as JSON."""
+    return _classify(payload.document_text, payload.top_k, request)
+
+
+@app.post("/classify-file", response_model=ClassificationResponse)
+async def classify_file(
+    request: Request,
+    file: Annotated[UploadFile, File(description="Plain-text (.txt) document")],
+    top_k: Annotated[
+        int,
+        Query(ge=settings.api.min_top_k, le=settings.api.max_top_k),
+    ] = settings.api.default_top_k,
+) -> ClassificationResponse:
+    """Classify a document uploaded as a multipart .txt file.
+
+    Only ``.txt`` uploads are accepted; the content is decoded as UTF-8
+    with undecodable bytes dropped, then classified through the same
+    path (and with the same length cap) as ``POST /classify_document``.
+    """
+    filename = file.filename or ""
+    if not filename.lower().endswith(".txt"):
+        raise HTTPException(status_code=400, detail="Only .txt files are supported")
+
+    raw = await file.read()
+    text = raw.decode("utf-8", errors="ignore")
+
+    max_length = int(settings.api.max_document_length)
+    if len(text) > max_length:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Decoded file exceeds {max_length} characters",
+        )
+
+    return _classify(text, top_k, request)
