@@ -1,0 +1,12 @@
+label,raw_files,empty_files,duplicates_removed,docs_after_dedup,median_words
+business,100,0,1,99,297
+entertainment,100,0,2,98,244
+food,100,0,0,100,217
+graphics,100,0,0,100,192
+historical,100,0,0,100,704
+medical,100,0,0,100,163
+politics,100,0,2,98,420
+space,100,0,0,100,190
+sport,100,0,2,98,256
+technology,100,0,1,99,434
+TOTAL,1000,0,8,992,268
