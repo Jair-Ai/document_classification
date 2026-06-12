@@ -3,6 +3,7 @@ name = "document-classifier"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
+    "dynaconf>=3.2.13",
     "fastapi>=0.136.3",
     "joblib>=1.5.3",
     "numpy>=2.4.6",

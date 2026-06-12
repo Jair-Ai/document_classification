@@ -10,6 +10,7 @@ out-of-distribution documents.
 
 - Project overview
 - Setup & quickstart (uv sync, training, running the API)
+- Configuration (Dynaconf settings & env overrides)
 - Model decision summary
 - `other` fallback & threshold trade-off
 - Confidence range report
