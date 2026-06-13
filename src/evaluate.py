@@ -16,8 +16,10 @@ import pandas as pd
 from sklearn.metrics import classification_report, confusion_matrix
 
 from src.confidence_analysis import (
+    ThresholdTradeoff,
     choose_other_threshold,
     confidence_range_report,
+    pool_tradeoffs,
     threshold_tradeoff_table,
     threshold_tradeoffs,
     top_confidences,
@@ -25,7 +27,7 @@ from src.confidence_analysis import (
 from src.config import DEFAULT_THRESHOLDS, RANDOM_STATE, THRESHOLD_SEARCH, TRAINED_LABELS
 from src.data_loader import load_dataset
 from src.predict import predict_batch, predict_text
-from src.train import stratified_split
+from src.train import build_model, stratified_split
 
 #: Characters of source text kept in per-row report excerpts.
 EXCERPT_CHARS = 500
@@ -211,6 +213,94 @@ def write_other_holdout_report(
     )
 
 
+def leave_one_class_out_ood(
+    known_texts: list[str],
+    known_labels: list[str],
+    known_paths: list[str],
+    model_name: str,
+    val_size: float,
+    test_size: float,
+    random_state: int,
+    thresholds: list[float] | None = None,
+) -> list[ThresholdTradeoff]:
+    """Estimate OOD catch rate with a leave-one-class-out probe.
+
+    The shipped six-file ``other`` holdout is too small to bound the
+    fallback false-positive/true-positive trade-off. This diagnostic
+    synthesizes a much larger OOD set *without new labels*: each known
+    class is excluded from training in turn and its documents are treated
+    as pseudo-OOD, while a held-in validation slice of the remaining
+    classes measures the known-label misroute side. Per-class folds are
+    pooled into a single threshold curve, so the shipped ``other``
+    threshold can be read against hundreds of OOD-like documents instead
+    of six. It re-trains the model per fold and never touches the shipped
+    bundle — it is a diagnostic, not a second threshold selector.
+    """
+    fold_rows: list[ThresholdTradeoff] = []
+    for held_out in sorted(set(known_labels)):
+        rest = [
+            (text, label, path)
+            for text, label, path in zip(known_texts, known_labels, known_paths, strict=True)
+            if label != held_out
+        ]
+        ood_texts = [
+            text
+            for text, label in zip(known_texts, known_labels, strict=True)
+            if label == held_out
+        ]
+        splits = stratified_split(
+            [text for text, _, _ in rest],
+            [label for _, label, _ in rest],
+            [path for _, _, path in rest],
+            val_size=val_size,
+            test_size=test_size,
+            random_state=random_state,
+        )
+        model = build_model(model_name)
+        model.fit(splits["train"]["texts"], splits["train"]["labels"])
+        fold_rows.extend(
+            threshold_tradeoffs(
+                {"model": model},
+                splits["validation"]["texts"],
+                ood_texts,
+                thresholds,
+            )
+        )
+    return pool_tradeoffs(fold_rows)
+
+
+def write_loco_ood_curve(
+    known_texts: list[str],
+    known_labels: list[str],
+    known_paths: list[str],
+    model_name: str,
+    val_size: float,
+    test_size: float,
+    random_state: int,
+    report_dir: Path,
+) -> list[ThresholdTradeoff]:
+    """Run the leave-one-class-out OOD probe and write its pooled curve."""
+    rows = leave_one_class_out_ood(
+        known_texts,
+        known_labels,
+        known_paths,
+        model_name,
+        val_size,
+        test_size,
+        random_state,
+    )
+    # Rename the holdout columns: here they count pooled pseudo-OOD docs
+    # (held-out known classes), not the six-file ``other`` holdout.
+    threshold_tradeoff_table(rows).rename(
+        columns={
+            "other_holdout_docs": "pseudo_ood_docs",
+            "other_holdout_caught": "pseudo_ood_caught",
+            "other_holdout_caught_pct": "pseudo_ood_caught_pct",
+        }
+    ).to_csv(report_dir / "ood_loco_curve.csv", index=False)
+    return rows
+
+
 def write_inference_benchmark(
     bundle: dict[str, Any],
     model_path: Path,
@@ -254,6 +344,7 @@ def tune_and_save_thresholds(
     test_texts: list[str],
     other_texts: list[str],
     report_dir: Path,
+    loco_rows: list[ThresholdTradeoff] | None = None,
 ) -> dict[str, Any]:
     """Choose the fallback threshold on validation and persist it."""
     validation_rows = threshold_tradeoffs(bundle, val_texts, other_texts)
@@ -293,6 +384,19 @@ def tune_and_save_thresholds(
             "check but too small for a statistically stable threshold."
         ),
     }
+    if loco_rows is not None:
+        pooled = next((row for row in loco_rows if row.threshold == choice.other_threshold), None)
+        if pooled is not None:
+            selection["ood_loco_validation"] = {
+                "method": "leave_one_class_out",
+                "pseudo_ood_docs": pooled.other_holdout_docs,
+                "pseudo_ood_caught_pct": pooled.other_holdout_caught_pct,
+                "note": (
+                    "Larger synthetic OOD probe at the chosen threshold; each "
+                    "known class is held out of training in turn and treated as "
+                    "OOD. See ood_loco_curve.csv for the full curve."
+                ),
+            }
     (report_dir / "threshold_selection.json").write_text(
         json.dumps(selection, indent=2) + "\n",
         encoding="utf-8",
@@ -313,6 +417,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--val-size", type=float, default=0.15)
     parser.add_argument("--test-size", type=float, default=0.15)
     parser.add_argument("--random-state", type=int, default=RANDOM_STATE)
+    parser.add_argument(
+        "--loco",
+        action="store_true",
+        help=(
+            "Also run the leave-one-class-out OOD diagnostic. Off by default: "
+            "it re-trains the model once per known class, which the core reports "
+            "do not require. When set, writes reports/ood_loco_curve.csv and adds "
+            "an ood_loco_validation block to threshold_selection.json."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -346,6 +460,20 @@ def main() -> None:
         splits["validation"]["labels"],
         report_dir,
     )
+    # Opt-in: the diagnostic re-trains per class, so the default run stays
+    # load-only. Pass --loco to also produce the leave-one-class-out curve.
+    loco_rows = None
+    if args.loco:
+        loco_rows = write_loco_ood_curve(
+            dataset.known_texts,
+            dataset.known_labels,
+            dataset.known_paths,
+            bundle["model_type"],
+            args.val_size,
+            args.test_size,
+            args.random_state,
+            report_dir,
+        )
     bundle = tune_and_save_thresholds(
         bundle,
         model_path,
@@ -353,6 +481,7 @@ def main() -> None:
         splits["test"]["texts"],
         dataset.other_texts,
         report_dir,
+        loco_rows=loco_rows,
     )
     # Run after tuning so final_label/decision reflect the shipped policy.
     write_misclassified_examples(

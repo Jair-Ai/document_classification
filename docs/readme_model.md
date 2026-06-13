@@ -77,9 +77,42 @@ Validation threshold trade-off:
 The chosen value, 0.15, catches all six `other` examples while keeping
 known-class misroutes under 5% on validation. On the held-out test set,
 the same threshold routes 2/149 known documents to `other` and catches
-6/6 of the OOD holdout. The OOD side is anecdotal because there are only
-six files; a production rollout should collect a larger negative set and
-revisit this threshold.
+6/6 of the OOD holdout.
+
+The **primary, statistically-backed** selection criterion is the
+known-label misroute guardrail (≤5% on 149 validation documents). The
+6/6 OOD catch is a **secondary smoke check** only: with six files it
+cannot bound the false-positive/true-positive trade-off, so it must not
+be read as a headline OOD recall result.
+
+### Leave-one-class-out OOD probe
+
+To estimate OOD recall with real statistical power but no new labels,
+`evaluate.py` offers an opt-in leave-one-class-out probe (`--loco`, off
+by default because it re-trains the model once per class and the core
+reports do not need it). Each known class is held out of training in
+turn and its documents are treated as pseudo-OOD, while a held-in
+validation slice of the remaining classes measures the known-misroute
+side. Pooling all ten folds yields a curve over **992** pseudo-OOD
+documents (`reports/ood_loco_curve.csv`, regenerated with
+`python -m src.evaluate --loco`):
+
+| `other` threshold | Known misroute % | Pseudo-OOD caught % |
+|---:|---:|---:|
+| 0.10 | 0.00% | 0.0% |
+| 0.15 | 0.75% | 27.6% |
+| 0.20 | 8.51% | 81.4% |
+| 0.25 | 15.90% | 96.1% |
+| 0.30 | 29.70% | 99.6% |
+
+This is the honest picture the six-file holdout cannot give: at the
+shipped 0.15 the model catches only ~28% of pseudo-OOD documents, not the
+100% the smoke check suggests. Catching the bulk of OOD traffic would
+require ~0.20, which breaches the 5% misroute guardrail — so 0.15 is the
+right *guardrail-constrained* choice, not a high-recall OOD detector. A
+production rollout should treat offline OOD recall as a lower bound and
+lean on post-hoc monitoring (alerting on the live `fallback_other` and
+low-confidence rate) rather than over-trusting any offline estimate.
 
 ## Confidence range report
 

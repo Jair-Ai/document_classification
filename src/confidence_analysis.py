@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
@@ -117,6 +118,41 @@ def threshold_tradeoffs(
 def threshold_tradeoff_table(rows: list[ThresholdTradeoff]) -> pd.DataFrame:
     """Convert typed threshold records to a report-friendly DataFrame."""
     return pd.DataFrame([row.__dict__ for row in rows])
+
+
+def pool_tradeoffs(rows: list[ThresholdTradeoff]) -> list[ThresholdTradeoff]:
+    """Sum per-fold trade-off rows into one pooled row per threshold.
+
+    Used by the leave-one-class-out OOD probe: each fold emits its own
+    counts at every threshold, and pooling recombines them into a single
+    curve over the merged pseudo-OOD and known-label populations, so the
+    catch/misroute rates are backed by every fold's documents at once.
+    """
+    grouped: dict[float, list[ThresholdTradeoff]] = defaultdict(list)
+    for row in rows:
+        grouped[row.threshold].append(row)
+
+    pooled: list[ThresholdTradeoff] = []
+    for threshold in sorted(grouped):
+        fold = grouped[threshold]
+        known_docs = sum(row.known_docs for row in fold)
+        known_misrouted = sum(row.known_misrouted_to_other for row in fold)
+        other_docs = sum(row.other_holdout_docs for row in fold)
+        other_caught = sum(row.other_holdout_caught for row in fold)
+        pooled.append(
+            ThresholdTradeoff(
+                threshold=threshold,
+                known_docs=known_docs,
+                known_misrouted_to_other=known_misrouted,
+                known_misrouted_pct=round(known_misrouted / known_docs, 4) if known_docs else 0.0,
+                other_holdout_docs=other_docs,
+                other_holdout_caught=other_caught,
+                other_holdout_caught_pct=(
+                    round(other_caught / other_docs, 4) if other_docs else None
+                ),
+            )
+        )
+    return pooled
 
 
 def choose_other_threshold(

@@ -12,5 +12,11 @@
   },
   "selection_basis": "validation known-label misroute guardrail plus anecdotal OOD holdout",
   "reason": "Chose the highest OOD catch count with known misroutes <= 5% on validation.",
-  "other_holdout_note": "The OOD side has only six files, so it is useful as a smoke check but too small for a statistically stable threshold."
+  "other_holdout_note": "The OOD side has only six files, so it is useful as a smoke check but too small for a statistically stable threshold.",
+  "ood_loco_validation": {
+    "method": "leave_one_class_out",
+    "pseudo_ood_docs": 992,
+    "pseudo_ood_caught_pct": 0.2762,
+    "note": "Larger synthetic OOD probe at the chosen threshold; each known class is held out of training in turn and treated as OOD. See ood_loco_curve.csv for the full curve."
+  }
 }
