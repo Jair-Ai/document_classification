@@ -6,7 +6,7 @@
   "not_routed_to_other_pct": 0.0,
   "predictions": [
     {
-      "path": "../trellis_assessment_ds/other/other_1.txt",
+      "path": "data/trellis_assessment_ds/other/other_1.txt",
       "label": "other",
       "raw_label": "entertainment",
       "confidence": 0.13974800235637327,
@@ -27,7 +27,7 @@
       ]
     },
     {
-      "path": "../trellis_assessment_ds/other/other_2.txt",
+      "path": "data/trellis_assessment_ds/other/other_2.txt",
       "label": "other",
       "raw_label": "sport",
       "confidence": 0.13013482030188234,
@@ -48,7 +48,7 @@
       ]
     },
     {
-      "path": "../trellis_assessment_ds/other/other_3.txt",
+      "path": "data/trellis_assessment_ds/other/other_3.txt",
       "label": "other",
       "raw_label": "politics",
       "confidence": 0.11758511647295453,
@@ -69,7 +69,7 @@
       ]
     },
     {
-      "path": "../trellis_assessment_ds/other/other_4.txt",
+      "path": "data/trellis_assessment_ds/other/other_4.txt",
       "label": "other",
       "raw_label": "graphics",
       "confidence": 0.1326403831218664,
@@ -90,7 +90,7 @@
       ]
     },
     {
-      "path": "../trellis_assessment_ds/other/other_5.txt",
+      "path": "data/trellis_assessment_ds/other/other_5.txt",
       "label": "other",
       "raw_label": "technology",
       "confidence": 0.13168866643537191,
@@ -111,7 +111,7 @@
       ]
     },
     {
-      "path": "../trellis_assessment_ds/other/other_6.txt",
+      "path": "data/trellis_assessment_ds/other/other_6.txt",
       "label": "other",
       "raw_label": "graphics",
       "confidence": 0.12849606016421689,

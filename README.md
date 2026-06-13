@@ -52,20 +52,41 @@ flowchart LR
 uv sync
 ```
 
+### Dataset
+
+The dataset is not committed. To reproduce the ML pipeline, place the
+assessment dataset so the category folders live at
+`data/trellis_assessment_ds/` (the `data/` folder is kept in git via
+`.gitkeep`, but its contents are gitignored):
+
+```
+data/
+└── trellis_assessment_ds/
+    ├── business/        *.txt
+    ├── entertainment/   *.txt
+    ├── ...
+    ├── technologie/     *.txt   # aliased to "technology" at load time
+    └── other/           *.txt   # OOD holdout — never used for training
+```
+
+All pipeline commands default to `--data-dir data/trellis_assessment_ds`,
+so once the files are in place they run with no extra flags. Override
+`--data-dir` if your dataset lives elsewhere.
+
 Train the model bundle:
 
 ```bash
 uv run python -m src.train \
-  --data-dir ../trellis_assessment_ds \
   --output models/document_classifier.joblib \
   --report-dir reports
 ```
 
-Generate evaluation reports and tune thresholds:
+Generate evaluation reports and tune thresholds (recreates every file in
+`reports/`, including `misclassified_examples.csv` and
+`other_holdout_predictions.csv`):
 
 ```bash
 uv run python -m src.evaluate \
-  --data-dir ../trellis_assessment_ds \
   --model-path models/document_classifier.joblib \
   --report-dir reports
 ```

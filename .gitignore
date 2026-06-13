@@ -4,6 +4,11 @@
 # Model artifacts (large binaries; reproducible via src/train.py)
 models/*.joblib
 
+# Dataset: place the assessment dataset at data/trellis_assessment_ds to run
+# the ML pipeline. Contents are not committed; the folder is kept via .gitkeep.
+/data/*
+!/data/.gitkeep
+
 # Python caches
 __pycache__/
 .ipynb_checkpoints/

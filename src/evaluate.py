@@ -24,13 +24,21 @@ from src.confidence_analysis import (
 )
 from src.config import DEFAULT_THRESHOLDS, RANDOM_STATE, THRESHOLD_SEARCH, TRAINED_LABELS
 from src.data_loader import load_dataset
-from src.predict import predict_text
+from src.predict import predict_batch, predict_text
 from src.train import stratified_split
+
+#: Characters of source text kept in per-row report excerpts.
+EXCERPT_CHARS = 500
 
 
 def raw_predictions(bundle: dict[str, Any], texts: list[str]) -> list[str]:
     """Return raw model labels, before threshold routing."""
     return [str(label) for label in bundle["model"].predict(texts)]
+
+
+def _excerpt(text: str, limit: int = EXCERPT_CHARS) -> str:
+    """Collapse whitespace and truncate to a single-line report excerpt."""
+    return " ".join(text.split())[:limit]
 
 
 def write_classification_reports(
@@ -72,6 +80,92 @@ def write_classification_reports(
         report_dir / "confusion_matrix.csv",
         index_label="actual",
     )
+
+
+def write_misclassified_examples(
+    bundle: dict[str, Any],
+    test_texts: list[str],
+    test_labels: list[str],
+    test_paths: list[str],
+    report_dir: Path,
+) -> None:
+    """Write every test-set document whose argmax label is wrong.
+
+    Rows are keyed on the raw model prediction (``raw_label != actual``),
+    so a misclassified document also shows its post-routing ``final_label``
+    and ``decision`` — a row can be both misclassified and routed to
+    ``other``. ``top_k`` is JSON-encoded so the notebook can parse the
+    full probability vector back out.
+    """
+    predictions = predict_batch(test_texts, bundle, top_k=3)
+    rows = [
+        {
+            "path": path,
+            "actual_label": actual,
+            "raw_label": pred["raw_label"],
+            "final_label": pred["label"],
+            "confidence": round(pred["confidence"], 4),
+            "decision": pred["decision"],
+            "top_k": json.dumps(pred["top_k"]),
+            "text_excerpt": _excerpt(text),
+        }
+        for path, text, actual, pred in zip(
+            test_paths, test_texts, test_labels, predictions, strict=True
+        )
+        if pred["raw_label"] != actual
+    ]
+    pd.DataFrame(
+        rows,
+        columns=[
+            "path",
+            "actual_label",
+            "raw_label",
+            "final_label",
+            "confidence",
+            "decision",
+            "top_k",
+            "text_excerpt",
+        ],
+    ).to_csv(report_dir / "misclassified_examples.csv", index=False)
+
+
+def write_other_holdout_predictions(
+    bundle: dict[str, Any],
+    other_texts: list[str],
+    other_paths: list[str],
+    report_dir: Path,
+) -> None:
+    """Write the per-document routing decision for the OOD holdout.
+
+    Unlike :func:`write_other_holdout_report` (which summarizes routing),
+    this emits one row per holdout document so the error-analysis notebook
+    can inspect where each ``other`` file landed.
+    """
+    predictions = predict_batch(other_texts, bundle, top_k=3)
+    rows = [
+        {
+            "path": path,
+            "final_label": pred["label"],
+            "raw_label": pred["raw_label"],
+            "confidence": round(pred["confidence"], 4),
+            "decision": pred["decision"],
+            "top_k": json.dumps(pred["top_k"]),
+            "text_excerpt": _excerpt(text),
+        }
+        for path, text, pred in zip(other_paths, other_texts, predictions, strict=True)
+    ]
+    pd.DataFrame(
+        rows,
+        columns=[
+            "path",
+            "final_label",
+            "raw_label",
+            "confidence",
+            "decision",
+            "top_k",
+            "text_excerpt",
+        ],
+    ).to_csv(report_dir / "other_holdout_predictions.csv", index=False)
 
 
 def write_confidence_ranges(
@@ -209,7 +303,11 @@ def tune_and_save_thresholds(
 def parse_args() -> argparse.Namespace:
     """Parse CLI arguments."""
     parser = argparse.ArgumentParser(description="Evaluate a trained document classifier")
-    parser.add_argument("--data-dir", required=True, help="Path to trellis_assessment_ds")
+    parser.add_argument(
+        "--data-dir",
+        default="data/trellis_assessment_ds",
+        help="Path to the assessment dataset (default: data/trellis_assessment_ds)",
+    )
     parser.add_argument("--model-path", default="models/document_classifier.joblib")
     parser.add_argument("--report-dir", default="reports")
     parser.add_argument("--val-size", type=float, default=0.15)
@@ -256,7 +354,16 @@ def main() -> None:
         dataset.other_texts,
         report_dir,
     )
+    # Run after tuning so final_label/decision reflect the shipped policy.
+    write_misclassified_examples(
+        bundle,
+        splits["test"]["texts"],
+        splits["test"]["labels"],
+        splits["test"]["paths"],
+        report_dir,
+    )
     write_other_holdout_report(bundle, dataset.other_texts, dataset.other_paths, report_dir)
+    write_other_holdout_predictions(bundle, dataset.other_texts, dataset.other_paths, report_dir)
     write_inference_benchmark(bundle, model_path, splits["test"]["texts"], report_dir)
     print(f"Wrote evaluation reports to {report_dir}")
 

@@ -161,7 +161,11 @@ def write_training_summary(
 def parse_args() -> argparse.Namespace:
     """Parse CLI arguments."""
     parser = argparse.ArgumentParser(description="Train the document classifier")
-    parser.add_argument("--data-dir", required=True, help="Path to trellis_assessment_ds")
+    parser.add_argument(
+        "--data-dir",
+        default="data/trellis_assessment_ds",
+        help="Path to the assessment dataset (default: data/trellis_assessment_ds)",
+    )
     parser.add_argument(
         "--model",
         default="logistic_regression",
