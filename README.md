@@ -14,6 +14,38 @@ The source folder typo `technologie` is normalized to `technology`.
 The `other` folder is not trained as a class; it is used only as an
 out-of-distribution holdout to test fallback behavior.
 
+## Start Here
+
+If you are new to the repo, this is the fastest path:
+
+1. Run the API locally (`uv sync`, then `uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4`).
+2. Train and evaluate the model with `src.train` and `src.evaluate`.
+3. Read the API details in `docs/readme_api.md` and the deployment plan in `infra/README.md`.
+4. Inspect `reports/` and `notebooks/` for the evidence behind the README claims.
+
+## Documentation Map
+
+- `README.md` — canonical overview of the system, setup, evaluation summary, and operating model.
+- `docs/readme_api.md` — API-focused usage, configuration, auth, and request/response behavior.
+- `docs/readme_model.md` — model-training and evaluation narrative, dataset handling, and threshold policy.
+- `infra/README.md` — AWS deployment design, scaling path, and security/operations notes.
+- `reports/` — committed evaluation artifacts quoted by this README.
+- `notebooks/` — reviewer-facing exploratory analysis, model comparison, and error analysis.
+
+## System Overview
+
+```mermaid
+flowchart LR
+  A[Dataset folders<br/>known labels + other holdout] --> B[src.train]
+  B --> C[model bundle<br/>joblib artifact]
+  A --> D[src.evaluate]
+  C --> D
+  D --> E[reports/ + threshold_selection.json]
+  C --> F[FastAPI service<br/>app.main]
+  F --> G[JSON and file-upload clients]
+  F --> H[ALB / ECS deployment path]
+```
+
 ## Setup
 
 ```bash
@@ -60,7 +92,8 @@ variables such as `API__MAX_FILE_UPLOAD_BYTES`,
 `API__UPLOAD_CHUNK_SIZE_BYTES`, `API__MULTIPART_OVERHEAD_BYTES`, and
 `API__MAX_REQUEST_BYTES`.
 
-Run with Docker:
+Run with Docker when you want a production-like container for the API
+service instead of the local `uv` workflow:
 
 ```bash
 docker build -t document-classifier .
@@ -68,6 +101,16 @@ docker run --rm -p 8000:8000 \
   -v "$PWD/models:/app/models:ro" \
   document-classifier
 ```
+
+The image does not bake in the trained model bundle. Mount
+`models/document_classifier.joblib` into `/app/models/` as shown above,
+or build a derivative image that includes the artifact. Without that
+file the container still starts, but the API stays in degraded mode and
+`/health` reports `model_loaded: false`.
+
+Use the container for serving the API. Training and evaluation remain
+best run from the source checkout with `uv run python -m src.train` and
+`uv run python -m src.evaluate`.
 
 An AWS deployment plan is documented in `infra/README.md`. It outlines
 ECS Fargate, ECR, ALB, Secrets Manager, CloudWatch Logs, S3 model
