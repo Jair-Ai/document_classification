@@ -1,0 +1,16 @@
+               precision    recall  f1-score   support
+
+     business     1.0000    1.0000    1.0000        15
+entertainment     1.0000    1.0000    1.0000        15
+         food     1.0000    1.0000    1.0000        15
+     graphics     0.9375    1.0000    0.9677        15
+   historical     1.0000    1.0000    1.0000        15
+      medical     1.0000    1.0000    1.0000        15
+     politics     1.0000    1.0000    1.0000        14
+        space     1.0000    0.9333    0.9655        15
+        sport     1.0000    1.0000    1.0000        15
+   technology     1.0000    1.0000    1.0000        15
+
+     accuracy                         0.9933       149
+    macro avg     0.9938    0.9933    0.9933       149
+ weighted avg     0.9937    0.9933    0.9933       149

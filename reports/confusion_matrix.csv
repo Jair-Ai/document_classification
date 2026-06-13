@@ -1,0 +1,11 @@
+actual,business,entertainment,food,graphics,historical,medical,politics,space,sport,technology
+business,15,0,0,0,0,0,0,0,0,0
+entertainment,0,15,0,0,0,0,0,0,0,0
+food,0,0,15,0,0,0,0,0,0,0
+graphics,0,0,0,15,0,0,0,0,0,0
+historical,0,0,0,0,15,0,0,0,0,0
+medical,0,0,0,0,0,15,0,0,0,0
+politics,0,0,0,0,0,0,14,0,0,0
+space,0,0,0,1,0,0,0,14,0,0
+sport,0,0,0,0,0,0,0,0,15,0
+technology,0,0,0,0,0,0,0,0,0,15

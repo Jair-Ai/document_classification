@@ -1,0 +1,135 @@
+{
+  "total": 6,
+  "routed_to_other": 6,
+  "routed_to_other_pct": 1.0,
+  "not_routed_to_other": 0,
+  "not_routed_to_other_pct": 0.0,
+  "predictions": [
+    {
+      "path": "../trellis_assessment_ds/other/other_1.txt",
+      "label": "other",
+      "raw_label": "entertainment",
+      "confidence": 0.13974800235637327,
+      "decision": "fallback_other",
+      "top_k": [
+        {
+          "label": "entertainment",
+          "confidence": 0.13974800235637327
+        },
+        {
+          "label": "historical",
+          "confidence": 0.11713336551070878
+        },
+        {
+          "label": "space",
+          "confidence": 0.10789635778720033
+        }
+      ]
+    },
+    {
+      "path": "../trellis_assessment_ds/other/other_2.txt",
+      "label": "other",
+      "raw_label": "sport",
+      "confidence": 0.13013482030188234,
+      "decision": "fallback_other",
+      "top_k": [
+        {
+          "label": "sport",
+          "confidence": 0.13013482030188234
+        },
+        {
+          "label": "entertainment",
+          "confidence": 0.10865169187297338
+        },
+        {
+          "label": "graphics",
+          "confidence": 0.10609414676501429
+        }
+      ]
+    },
+    {
+      "path": "../trellis_assessment_ds/other/other_3.txt",
+      "label": "other",
+      "raw_label": "politics",
+      "confidence": 0.11758511647295453,
+      "decision": "fallback_other",
+      "top_k": [
+        {
+          "label": "politics",
+          "confidence": 0.11758511647295453
+        },
+        {
+          "label": "historical",
+          "confidence": 0.11122908642710296
+        },
+        {
+          "label": "graphics",
+          "confidence": 0.1068409971965831
+        }
+      ]
+    },
+    {
+      "path": "../trellis_assessment_ds/other/other_4.txt",
+      "label": "other",
+      "raw_label": "graphics",
+      "confidence": 0.1326403831218664,
+      "decision": "fallback_other",
+      "top_k": [
+        {
+          "label": "graphics",
+          "confidence": 0.1326403831218664
+        },
+        {
+          "label": "technology",
+          "confidence": 0.12766922225641872
+        },
+        {
+          "label": "medical",
+          "confidence": 0.12423754569890773
+        }
+      ]
+    },
+    {
+      "path": "../trellis_assessment_ds/other/other_5.txt",
+      "label": "other",
+      "raw_label": "technology",
+      "confidence": 0.13168866643537191,
+      "decision": "fallback_other",
+      "top_k": [
+        {
+          "label": "technology",
+          "confidence": 0.13168866643537191
+        },
+        {
+          "label": "graphics",
+          "confidence": 0.13030672264751836
+        },
+        {
+          "label": "medical",
+          "confidence": 0.1241848256019452
+        }
+      ]
+    },
+    {
+      "path": "../trellis_assessment_ds/other/other_6.txt",
+      "label": "other",
+      "raw_label": "graphics",
+      "confidence": 0.12849606016421689,
+      "decision": "fallback_other",
+      "top_k": [
+        {
+          "label": "graphics",
+          "confidence": 0.12849606016421689
+        },
+        {
+          "label": "entertainment",
+          "confidence": 0.11175958481491843
+        },
+        {
+          "label": "medical",
+          "confidence": 0.1088562706540799
+        }
+      ]
+    }
+  ]
+}

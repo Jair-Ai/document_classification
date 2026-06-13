@@ -1,0 +1,7 @@
+{
+  "single_doc_latency_ms_median": 0.3358,
+  "single_doc_latency_ms_p95": 0.508,
+  "batch_size": 149,
+  "batch_docs_per_second": 4672.16,
+  "model_size_mb": 2.07
+}
