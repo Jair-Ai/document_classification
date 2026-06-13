@@ -221,24 +221,32 @@ curl -X POST "http://localhost:8000/classify-file?top_k=3" \
 
 ## Configuration
 
-Settings live in `settings.toml` and are loaded with Dynaconf. Useful
-environment overrides:
+Settings live in `config/settings.toml` and are loaded with Dynaconf.
+Select an environment with `ENV_FOR_DYNACONF` and override nested values
+with double-underscore environment variables:
 
 ```bash
+ENV_FOR_DYNACONF=production
 MODEL_PATH=/opt/models/classifier_v2.joblib
 API__MAX_DOCUMENT_LENGTH=50000
 API__DEFAULT_TOP_K=5
+LOGGING__LEVEL=DEBUG
+LOGGING__JSON=false
 ```
 
 `MODEL_PATH` is resolved at load time, with the environment variable
-taking precedence over `settings.toml`.
+taking precedence over `config/settings.toml`.
 
 ## Logging And Operations
 
-The API emits one structured JSON log line per request with request ID,
-method, path, status code, latency, predicted label, confidence,
-decision, text length, and SHA-256 text hash. Raw document text is never
-logged.
+The API configures logging in `app/logging.py` from Dynaconf
+`settings.logging.*`. Production defaults to one JSON log line per
+request; development can use console logs by setting
+`ENV_FOR_DYNACONF=development` or `LOGGING__JSON=false`.
+
+Request logs include request ID, method, path, status code, latency,
+predicted label, confidence, decision, text length, and SHA-256 text
+hash. Raw document text is never logged.
 
 A missing or corrupt model artifact does not crash the service. The app
 stays up, `/health` reports `model_loaded: false`, and classification
@@ -259,7 +267,7 @@ Current gate results:
 - Ruff format/check: pass
 - basedpyright: pass
 - pip-audit: no known vulnerabilities found
-- pytest: 26 passed, 1 third-party deprecation warning from Starlette
+- pytest: 31 passed, 1 third-party deprecation warning from Starlette
 
 ## Jupyter Workflow
 

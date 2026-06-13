@@ -127,20 +127,24 @@ curl -X POST http://localhost:8000/classify_document \
 
 ### Configuration
 
-Settings live in `settings.toml` at the repo root and are loaded via
-Dynaconf (`app/config.py`). Any value can be overridden with an
+Settings live in `config/settings.toml` and are loaded via Dynaconf
+(`app/config.py`). Select an environment with `ENV_FOR_DYNACONF`
+(`development` or `production`) and override any value with an
 environment variable — no code or config-file change needed per
-environment:
+deployment:
 
 ```bash
+ENV_FOR_DYNACONF=production
 MODEL_PATH=/opt/models/classifier_v2.joblib   # model artifact location
 API__MAX_DOCUMENT_LENGTH=50000                # nested [api] keys use __
 API__DEFAULT_TOP_K=5
+LOGGING__LEVEL=DEBUG                          # nested [logging] keys
+LOGGING__JSON=false
 ```
 
 `MODEL_PATH` is resolved at load time (env var first, then
-`settings.toml`), so deployments can point at a new artifact without
-rebuilding.
+`config/settings.toml`), so deployments can point at a new artifact
+without rebuilding.
 
 ### Workers and statelessness
 
@@ -161,14 +165,19 @@ payload instead.
 
 ### Logging policy
 
-One structured (JSON) log line is emitted per request: request ID,
-method, path, status code, latency in ms, and — for classifications —
-the predicted label, confidence, decision, text length, and a SHA-256
-hash of the text. The raw document text is **never** logged: it may
-contain sensitive content, and at millions of documents per day it
-would dominate log volume. The length + hash pair is enough to
-correlate duplicates and debug payload issues. Every response carries
-an `X-Request-ID` header for client-side correlation.
+Logging is configured in `app/logging.py` from Dynaconf
+`settings.logging.*`. Production defaults to JSON logs; development can
+switch to a console-friendly format with `ENV_FOR_DYNACONF=development`
+or explicit `LOGGING__JSON=false`.
+
+One structured log line is emitted per request: request ID, method,
+path, status code, latency in ms, and — for classifications — the
+predicted label, confidence, decision, text length, and a SHA-256 hash
+of the text. The raw document text is **never** logged: it may contain
+sensitive content, and at millions of documents per day it would
+dominate log volume. The length + hash pair is enough to correlate
+duplicates and debug payload issues. Every response carries an
+`X-Request-ID` header for client-side correlation.
 
 ### Payload cap rationale
 

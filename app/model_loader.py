@@ -29,8 +29,8 @@ def resolve_model_path() -> Path:
     """Return the model artifact path, resolved at call time.
 
     The ``MODEL_PATH`` environment variable takes precedence over the
-    ``model_path`` entry in ``settings.toml``, so deployments and tests
-    can point at a different artifact without editing config files.
+    ``model_path`` entry in ``config/settings.toml``, so deployments and
+    tests can point at a different artifact without editing config files.
     Relative paths are resolved against the project root so the app
     behaves the same regardless of the working directory.
     """

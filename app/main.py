@@ -7,7 +7,6 @@ workers (e.g. ``uvicorn app.main:app --workers 4``).
 """
 
 import hashlib
-import json
 import logging
 import time
 import uuid
@@ -18,9 +17,12 @@ from typing import Annotated, Any
 from fastapi import FastAPI, File, HTTPException, Query, Request, Response, UploadFile
 
 from app.config import settings
+from app.logging import configure_logging
 from app.model_loader import load_bundle
 from app.schemas import ClassificationRequest, ClassificationResponse
 from src.predict import predict_text
+
+configure_logging(settings)
 
 logger = logging.getLogger(__name__)
 request_logger = logging.getLogger("app.requests")
@@ -67,7 +69,7 @@ async def log_requests(
         "latency_ms": round((time.perf_counter() - start) * 1000, 2),
     }
     record.update(getattr(request.state, "log_fields", {}))
-    request_logger.info(json.dumps(record))
+    request_logger.info(record)
 
     response.headers["X-Request-ID"] = request_id
     return response

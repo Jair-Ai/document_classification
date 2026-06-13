@@ -1,7 +1,8 @@
 """Request/response models for the document classification API.
 
-Validation limits come from ``settings.toml`` (see ``app.config``) so
-payload caps can be tuned per environment without code changes.
+Validation limits come from ``config/settings.toml`` (see
+``app.config``) so payload caps can be tuned per environment without
+code changes.
 """
 
 from pydantic import BaseModel, Field

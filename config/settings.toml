@@ -1,0 +1,36 @@
+# Application settings, managed by Dynaconf (see app/config.py).
+#
+# Environment selection:
+#   ENV_FOR_DYNACONF=development
+#   ENV_FOR_DYNACONF=production
+#
+# Nested values can be overridden with environment variables:
+#   MODEL_PATH=/tmp/model.joblib
+#   API__MAX_DOCUMENT_LENGTH=50000
+#   LOGGING__LEVEL=DEBUG
+#   LOGGING__JSON=false
+
+[default]
+model_path = "models/document_classifier.joblib"
+
+[default.api]
+min_document_length = 1
+max_document_length = 100000
+default_top_k = 3
+min_top_k = 1
+max_top_k = 10
+
+[default.logging]
+level = "INFO"
+json = true
+include_request_id = true
+
+[development.logging]
+level = "DEBUG"
+json = false
+include_request_id = true
+
+[production.logging]
+level = "INFO"
+json = true
+include_request_id = true
