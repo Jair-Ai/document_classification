@@ -84,12 +84,33 @@ Decision routing uses the thresholds shipped inside the model bundle
 (defaults: auto-accept at ≥ 0.90, review band down to 0.70, fallback to
 `"other"` below 0.55).
 
+### `POST /classify-file`
+
+Classifies a document uploaded as a multipart `.txt` file. The response
+shape is identical to `POST /classify_document`.
+
+| Parameter | In | Constraints | Description |
+|---|---|---|---|
+| `file` | form-data | required, filename must end in `.txt` | Plain-text document |
+| `top_k` | query | optional, 1–10, default 3 | Number of (label, confidence) pairs |
+
+The file content is decoded as UTF-8 with undecodable bytes dropped,
+then validated and classified through the same path as the JSON
+endpoint: whitespace-only content returns 400, content longer than the
+configured document length cap returns 422, and a non-`.txt` filename
+returns 400 with `{"detail": "Only .txt files are supported"}`.
+
+```bash
+curl -X POST "http://localhost:8000/classify-file?top_k=3" \
+  -F "file=@article.txt"
+```
+
 ## Response status codes
 
 | Status | When | Body |
 |---|---|---|
 | 200 | Classification succeeded | `ClassificationResponse` (see example above) |
-| 400 | Whitespace-only `document_text` | `{"detail": "document_text must not be empty"}` |
+| 400 | Whitespace-only `document_text`, or non-`.txt` upload | `{"detail": "document_text must not be empty"}` / `{"detail": "Only .txt files are supported"}` |
 | 422 | Schema validation failure (missing field, length, top_k out of range) | FastAPI validation detail |
 | 503 | Model artifact missing/unloadable | `{"detail": "Model is unavailable"}` |
 | 500 | Unexpected inference failure | `{"detail": "Unexpected classification error"}` |
