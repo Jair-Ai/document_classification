@@ -8,6 +8,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from sklearn.metrics import average_precision_score, roc_auc_score
 
 from src.config import THRESHOLD_SEARCH
 
@@ -18,6 +19,49 @@ class ThresholdChoice:
 
     other_threshold: float
     reason: str
+
+
+@dataclass(frozen=True)
+class OODScoreAUC:
+    """Threshold-independent quality of the OOD score (max-softmax based).
+
+    The fallback router thresholds the model's top probability, so its
+    out-of-distribution detector is exactly the max-softmax-probability
+    (MSP) baseline. AUROC/AUPR summarize how well that score separates
+    pseudo-OOD documents from known-label documents *independent of any
+    single threshold*, which the single shipped catch rate cannot show.
+    """
+
+    auroc: float
+    aupr: float
+    known_docs: int
+    ood_docs: int
+
+
+def ood_score_auc(known_conf: np.ndarray, ood_conf: np.ndarray) -> OODScoreAUC:
+    """Score the MSP OOD detector on pooled known vs pseudo-OOD confidences.
+
+    Args:
+        known_conf: Max predicted probability for known-label documents.
+        ood_conf: Max predicted probability for pseudo-OOD documents.
+
+    The OOD-ness score is ``1 - max_softmax`` (higher == more OOD), and the
+    positive class is "is OOD". Returns AUROC and AUPR over the pooled
+    population so ``other`` can be judged as a detector, not just at the
+    shipped operating point.
+    """
+    known_conf = np.asarray(known_conf, dtype=float)
+    ood_conf = np.asarray(ood_conf, dtype=float)
+    y_true = np.concatenate(
+        [np.zeros(len(known_conf), dtype=int), np.ones(len(ood_conf), dtype=int)]
+    )
+    scores = 1.0 - np.concatenate([known_conf, ood_conf])
+    return OODScoreAUC(
+        auroc=round(float(roc_auc_score(y_true, scores)), 4),
+        aupr=round(float(average_precision_score(y_true, scores)), 4),
+        known_docs=int(len(known_conf)),
+        ood_docs=int(len(ood_conf)),
+    )
 
 
 @dataclass(frozen=True)

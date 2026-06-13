@@ -12,13 +12,16 @@ from pathlib import Path
 from typing import Any, cast
 
 import joblib
+import numpy as np
 import pandas as pd
 from sklearn.metrics import classification_report, confusion_matrix
 
 from src.confidence_analysis import (
+    OODScoreAUC,
     ThresholdTradeoff,
     choose_other_threshold,
     confidence_range_report,
+    ood_score_auc,
     pool_tradeoffs,
     threshold_tradeoff_table,
     threshold_tradeoffs,
@@ -222,7 +225,7 @@ def leave_one_class_out_ood(
     test_size: float,
     random_state: int,
     thresholds: list[float] | None = None,
-) -> list[ThresholdTradeoff]:
+) -> tuple[list[ThresholdTradeoff], np.ndarray, np.ndarray]:
     """Estimate OOD catch rate with a leave-one-class-out probe.
 
     The shipped six-file ``other`` holdout is too small to bound the
@@ -235,8 +238,15 @@ def leave_one_class_out_ood(
     threshold can be read against hundreds of OOD-like documents instead
     of six. It re-trains the model per fold and never touches the shipped
     bundle — it is a diagnostic, not a second threshold selector.
+
+    Returns the pooled threshold curve plus the pooled per-document
+    max-softmax confidences for the held-in (known) and held-out
+    (pseudo-OOD) populations, so callers can compute a threshold-
+    independent AUROC/AUPR for the OOD score, not just a single catch rate.
     """
     fold_rows: list[ThresholdTradeoff] = []
+    known_conf_parts: list[np.ndarray] = []
+    ood_conf_parts: list[np.ndarray] = []
     for held_out in sorted(set(known_labels)):
         rest = [
             (text, label, path)
@@ -256,15 +266,22 @@ def leave_one_class_out_ood(
         )
         model = build_model(model_name)
         model.fit(splits["train"]["texts"], splits["train"]["labels"])
+        fold_bundle = {"model": model}
         fold_rows.extend(
             threshold_tradeoffs(
-                {"model": model},
+                fold_bundle,
                 splits["validation"]["texts"],
                 ood_texts,
                 thresholds,
             )
         )
-    return pool_tradeoffs(fold_rows)
+        known_conf_parts.append(top_confidences(fold_bundle, splits["validation"]["texts"]))
+        if ood_texts:
+            ood_conf_parts.append(top_confidences(fold_bundle, ood_texts))
+
+    known_conf = np.concatenate(known_conf_parts) if known_conf_parts else np.array([])
+    ood_conf = np.concatenate(ood_conf_parts) if ood_conf_parts else np.array([])
+    return pool_tradeoffs(fold_rows), known_conf, ood_conf
 
 
 def write_loco_ood_curve(
@@ -276,9 +293,15 @@ def write_loco_ood_curve(
     test_size: float,
     random_state: int,
     report_dir: Path,
-) -> list[ThresholdTradeoff]:
-    """Run the leave-one-class-out OOD probe and write its pooled curve."""
-    rows = leave_one_class_out_ood(
+) -> tuple[list[ThresholdTradeoff], OODScoreAUC]:
+    """Run the leave-one-class-out OOD probe and write its pooled curve.
+
+    Writes ``ood_loco_curve.csv`` (the full operating-point frontier) and
+    ``ood_auc.json`` (the threshold-independent AUROC/AUPR of the
+    max-softmax OOD score), and returns both so the threshold-selection
+    artifact can quote the AUROC alongside the shipped catch rate.
+    """
+    rows, known_conf, ood_conf = leave_one_class_out_ood(
         known_texts,
         known_labels,
         known_paths,
@@ -296,7 +319,30 @@ def write_loco_ood_curve(
             "other_holdout_caught_pct": "pseudo_ood_caught_pct",
         }
     ).to_csv(report_dir / "ood_loco_curve.csv", index=False)
-    return rows
+
+    auc = ood_score_auc(known_conf, ood_conf)
+    (report_dir / "ood_auc.json").write_text(
+        json.dumps(
+            {
+                "method": "leave_one_class_out",
+                "ood_score": "1 - max_softmax_probability",
+                "auroc": auc.auroc,
+                "aupr": auc.aupr,
+                "known_docs": auc.known_docs,
+                "pseudo_ood_docs": auc.ood_docs,
+                "note": (
+                    "Threshold-independent quality of the OOD score. AUROC/AUPR "
+                    "summarize separation of pseudo-OOD from known documents over "
+                    "all operating points; the shipped 'other' threshold is one "
+                    "deliberately high-precision point on this curve."
+                ),
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return rows, auc
 
 
 def write_inference_benchmark(
@@ -343,6 +389,7 @@ def tune_and_save_thresholds(
     other_texts: list[str],
     report_dir: Path,
     loco_rows: list[ThresholdTradeoff] | None = None,
+    loco_auc: OODScoreAUC | None = None,
 ) -> dict[str, Any]:
     """Choose the fallback threshold on validation and persist it."""
     validation_rows = threshold_tradeoffs(bundle, val_texts, other_texts)
@@ -395,6 +442,13 @@ def tune_and_save_thresholds(
                     "OOD. See ood_loco_curve.csv for the full curve."
                 ),
             }
+            if loco_auc is not None:
+                # Threshold-independent quality of the OOD score. The catch
+                # rate above is one high-precision operating point; AUROC/AUPR
+                # show how well the score separates OOD across all points.
+                selection["ood_loco_validation"]["ood_score"] = "1 - max_softmax_probability"
+                selection["ood_loco_validation"]["auroc"] = loco_auc.auroc
+                selection["ood_loco_validation"]["aupr"] = loco_auc.aupr
     (report_dir / "threshold_selection.json").write_text(
         json.dumps(selection, indent=2) + "\n",
         encoding="utf-8",
@@ -461,8 +515,9 @@ def main() -> None:
     # Opt-in: the diagnostic re-trains per class, so the default run stays
     # load-only. Pass --loco to also produce the leave-one-class-out curve.
     loco_rows = None
+    loco_auc = None
     if args.loco:
-        loco_rows = write_loco_ood_curve(
+        loco_rows, loco_auc = write_loco_ood_curve(
             dataset.known_texts,
             dataset.known_labels,
             dataset.known_paths,
@@ -480,6 +535,7 @@ def main() -> None:
         dataset.other_texts,
         report_dir,
         loco_rows=loco_rows,
+        loco_auc=loco_auc,
     )
     # Run after tuning so final_label/decision reflect the shipped policy.
     write_misclassified_examples(

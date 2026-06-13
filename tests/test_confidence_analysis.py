@@ -1,6 +1,8 @@
 """Unit tests for threshold search defaults and selection helpers."""
 
-from src.confidence_analysis import choose_other_threshold, threshold_tradeoffs
+import numpy as np
+
+from src.confidence_analysis import choose_other_threshold, ood_score_auc, threshold_tradeoffs
 from src.config import THRESHOLD_SEARCH
 
 
@@ -51,3 +53,40 @@ def test_choose_other_threshold_uses_configured_guardrail() -> None:
 
     assert choice.other_threshold == 0.2
     assert f"{THRESHOLD_SEARCH.max_known_misroute_pct:.0%}" in choice.reason
+
+
+def test_ood_score_auc_perfectly_separable() -> None:
+    """High-confidence known vs low-confidence OOD is perfectly separable."""
+    known = np.array([0.90, 0.95, 0.99])
+    ood = np.array([0.05, 0.10, 0.20])
+
+    result = ood_score_auc(known, ood)
+
+    assert result.auroc == 1.0
+    assert result.aupr == 1.0
+    assert result.known_docs == 3
+    assert result.ood_docs == 3
+
+
+def test_ood_score_auc_uses_ood_as_positive_class() -> None:
+    """The score is ``1 - max_softmax``; OOD (low confidence) is positive.
+
+    If the sign were inverted, this clearly separable case would score
+    near 0 instead of 1, so this pins the score direction.
+    """
+    known = np.array([0.80, 0.85, 0.92, 0.88])
+    ood = np.array([0.10, 0.12, 0.15])
+
+    result = ood_score_auc(known, ood)
+
+    assert result.auroc > 0.9
+
+
+def test_ood_score_auc_chance_for_indistinguishable_scores() -> None:
+    """Identical confidences on both sides give chance-level AUROC."""
+    known = np.full(5, 0.5)
+    ood = np.full(5, 0.5)
+
+    result = ood_score_auc(known, ood)
+
+    assert result.auroc == 0.5
