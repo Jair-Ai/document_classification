@@ -40,6 +40,7 @@ request_logger = logging.getLogger("app.requests")
 
 DEFAULT_CORS_METHODS = "GET, POST, OPTIONS"
 
+
 class RequestBodyTooLargeError(Exception):
     """Raised when a request body exceeds the configured byte budget."""
 

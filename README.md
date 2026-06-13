@@ -407,12 +407,15 @@ requests return 503.
 
 ## Quality Gates
 
+Run every gate locally:
+
 ```bash
 uv run ruff format . --check
 uv run ruff check .
 uv run basedpyright
 uv run pip-audit
-uv run pytest -q
+uv run pytest -q                 # fast suite (integration excluded by default)
+uv run pytest -m integration     # real artifact + dataset, end-to-end
 ```
 
 Current gate results:
@@ -420,7 +423,22 @@ Current gate results:
 - Ruff format/check: pass
 - basedpyright: pass
 - pip-audit: no known vulnerabilities found
-- pytest: 45 passed, 1 third-party deprecation warning from Starlette
+- pytest: 60 passed (fast suite); 12 passed (integration). One third-party
+  deprecation warning from Starlette.
+
+### Continuous integration
+
+The same gates run automatically on every push to `main` and every pull
+request via GitHub Actions (`.github/workflows/ci.yml`), as parallel jobs so
+each failure is isolated:
+
+- `lint` — `ruff check` + `ruff format --check`
+- `typecheck` — `basedpyright`
+- `test` — fast `pytest` suite
+- `audit` — `pip-audit`
+- `docker` — builds the image, smoke-tests `/health`, and pushes to GHCR on `main`
+- `integration` — real-artifact suite, non-blocking (the artifact/dataset may
+  not be committed, in which case the tests skip)
 
 ## Jupyter Workflow
 

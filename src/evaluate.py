@@ -244,9 +244,7 @@ def leave_one_class_out_ood(
             if label != held_out
         ]
         ood_texts = [
-            text
-            for text, label in zip(known_texts, known_labels, strict=True)
-            if label == held_out
+            text for text, label in zip(known_texts, known_labels, strict=True) if label == held_out
         ]
         splits = stratified_split(
             [text for text, _, _ in rest],

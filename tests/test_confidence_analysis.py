@@ -17,14 +17,31 @@ def test_threshold_tradeoffs_uses_configured_search_space() -> None:
 
     assert rows[0].threshold == THRESHOLD_SEARCH.other_min
     assert rows[-1].threshold == THRESHOLD_SEARCH.other_max
-    assert len(rows) == int(
-        round((THRESHOLD_SEARCH.other_max - THRESHOLD_SEARCH.other_min) / THRESHOLD_SEARCH.other_step)
-    ) + 1
+    assert (
+        len(rows)
+        == int(
+            round(
+                (THRESHOLD_SEARCH.other_max - THRESHOLD_SEARCH.other_min)
+                / THRESHOLD_SEARCH.other_step
+            )
+        )
+        + 1
+    )
 
 
 def test_choose_other_threshold_uses_configured_guardrail() -> None:
     rows = threshold_tradeoffs(
-        {"model": type("DummyModel", (), {"predict_proba": lambda self, texts: [[0.96], [0.80], [0.28]] if len(texts) == 3 else [[0.03], [0.19]]})()},
+        {
+            "model": type(
+                "DummyModel",
+                (),
+                {
+                    "predict_proba": lambda self, texts: (
+                        [[0.96], [0.80], [0.28]] if len(texts) == 3 else [[0.03], [0.19]]
+                    )
+                },
+            )()
+        },
         ["a", "b", "c"],
         ["x", "y"],
         thresholds=[0.05, 0.10, 0.20],

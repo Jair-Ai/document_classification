@@ -5,9 +5,10 @@ training script, prediction path, and evaluation code never disagree
 about what the model is trained on or how confidence routing starts.
 """
 
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-import tomllib
+from typing import Any
 
 # The ten labels the classifier is trained on, sorted alphabetically.
 # This order must match the column order of the model's predict_proba
@@ -63,7 +64,7 @@ class CalibrationConfig:
     cv: int
 
 
-def _load_model_config() -> dict[str, object]:
+def _load_model_config() -> dict[str, Any]:
     """Load the dedicated model TOML config once."""
     with MODEL_CONFIG_FILE.open("rb") as handle:
         return tomllib.load(handle)

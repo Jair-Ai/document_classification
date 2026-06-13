@@ -81,12 +81,15 @@ def threshold_tradeoffs(
     "caught" by the same rule.
     """
     if thresholds is None:
-        count = int(
-            round(
-                (THRESHOLD_SEARCH.other_max - THRESHOLD_SEARCH.other_min)
-                / THRESHOLD_SEARCH.other_step
+        count = (
+            int(
+                round(
+                    (THRESHOLD_SEARCH.other_max - THRESHOLD_SEARCH.other_min)
+                    / THRESHOLD_SEARCH.other_step
+                )
             )
-        ) + 1
+            + 1
+        )
         thresholds = [
             round(THRESHOLD_SEARCH.other_min + index * THRESHOLD_SEARCH.other_step, 2)
             for index in range(count)
