@@ -105,12 +105,62 @@ curl -X POST "http://localhost:8000/classify-file?top_k=3" \
   -F "file=@article.txt"
 ```
 
+### `POST /classify_documents`
+
+Classifies multiple documents in one synchronous request. This endpoint
+uses one vectorized model call for the submitted texts, which reduces
+HTTP, JSON parsing, vectorization, and model-call overhead compared with
+many `POST /classify_document` requests.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `documents` | array | required, 1–100 items by default | Documents to classify |
+| `documents[].id` | string/null | optional, max 128 chars | Client-provided document identifier returned in the result |
+| `documents[].document_text` | string | required, 1–100,000 chars | Raw document text |
+| `top_k` | int | optional, 1–10, default 3 | Number of labels per document |
+
+```json
+{
+  "documents": [
+    {"id": "doc-1", "document_text": "Dollar hits new low versus euro..."},
+    {"id": "doc-2", "document_text": "The striker scored twice in the final..."}
+  ],
+  "top_k": 3
+}
+```
+
+```json
+{
+  "message": "Batch classification successful",
+  "total": 2,
+  "results": [
+    {
+      "document_id": "doc-1",
+      "label": "business",
+      "raw_label": "business",
+      "confidence": 0.1985,
+      "decision": "manual_review",
+      "top_k": [
+        {"label": "business", "confidence": 0.1985},
+        {"label": "space", "confidence": 0.1022},
+        {"label": "graphics", "confidence": 0.1015}
+      ]
+    }
+  ]
+}
+```
+
+The batch size cap is configured with `API__MAX_BATCH_SIZE`. For
+millions of documents, use queue-backed workers and persistent result
+storage; this endpoint is the bounded synchronous path.
+
 ## Response status codes
 
 | Status | When | Body |
 |---|---|---|
 | 200 | Classification succeeded | `ClassificationResponse` (see example above) |
 | 400 | Whitespace-only `document_text`, or non-`.txt` upload | `{"detail": "document_text must not be empty"}` / `{"detail": "Only .txt files are supported"}` |
+| 401 | API key missing or invalid when enabled | `{"detail": "Invalid or missing API key"}` |
 | 422 | Schema validation failure (missing field, length, top_k out of range) | FastAPI validation detail |
 | 503 | Model artifact missing/unloadable | `{"detail": "Model is unavailable"}` |
 | 500 | Unexpected inference failure | `{"detail": "Unexpected classification error"}` |
@@ -137,9 +187,12 @@ deployment:
 ENV_FOR_DYNACONF=production
 MODEL_PATH=/opt/models/classifier_v2.joblib   # model artifact location
 API__MAX_DOCUMENT_LENGTH=50000                # nested [api] keys use __
+API__MAX_BATCH_SIZE=100
 API__DEFAULT_TOP_K=5
 LOGGING__LEVEL=DEBUG                          # nested [logging] keys
 LOGGING__JSON=false
+SECURITY__API_KEY_ENABLED=true                # optional API key auth
+SECURITY__API_KEY=change-me
 ```
 
 `MODEL_PATH` is resolved at load time (env var first, then
@@ -178,6 +231,29 @@ sensitive content, and at millions of documents per day it would
 dominate log volume. The length + hash pair is enough to correlate
 duplicates and debug payload issues. Every response carries an
 `X-Request-ID` header for client-side correlation.
+
+### Optional API key
+
+API-key authentication is disabled by default for local evaluation. In a
+deployed environment, enable it with:
+
+```bash
+SECURITY__API_KEY_ENABLED=true
+SECURITY__API_KEY=change-me
+SECURITY__API_KEY_HEADER=X-API-Key
+```
+
+Clients then include:
+
+```bash
+curl -X POST http://localhost:8000/classify_document \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: change-me" \
+  -d '{"document_text": "Dollar hits new low versus euro...", "top_k": 3}'
+```
+
+`/health` remains public for platform health checks. Classification
+endpoints return 401 when the API key is missing or invalid.
 
 ### Payload cap rationale
 

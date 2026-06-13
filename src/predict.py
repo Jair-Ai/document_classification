@@ -16,36 +16,13 @@ DEFAULT_THRESHOLDS: dict[str, float] = {
 FALLBACK_LABEL = "other"
 
 
-def predict_text(text: str, bundle: dict[str, Any], top_k: int = 3) -> dict[str, Any]:
-    """Classify ``text`` using a model bundle and route it by confidence.
-
-    Args:
-        text: Raw document text to classify.
-        bundle: Model bundle dict. Must contain a
-            ``model`` (sklearn pipeline supporting ``predict_proba``) and
-            ``target_names`` index-aligned with the probability output.
-            ``confidence_thresholds`` is optional; missing keys fall back
-            to defaults of 0.90 / 0.70 / 0.55.
-        top_k: Number of (label, confidence) pairs to return, clamped to
-            the number of available classes.
-
-    Returns:
-        A dict with:
-            label: Final label after threshold routing (may be "other").
-            raw_label: The model's argmax label, before routing.
-            confidence: Maximum predicted probability.
-            decision: One of "auto_accept", "review_recommended",
-                "manual_review", or "fallback_other".
-            top_k: List of ``{"label": str, "confidence": float}``
-                sorted by confidence descending.
-    """
-    model = bundle["model"]
-    target_names: list[str] = list(bundle["target_names"])
-
-    thresholds = {**DEFAULT_THRESHOLDS, **bundle.get("confidence_thresholds", {})}
-
-    probabilities = model.predict_proba([text])[0]
-
+def _format_prediction(
+    probabilities: Any,
+    target_names: list[str],
+    thresholds: dict[str, float],
+    top_k: int,
+) -> dict[str, Any]:
+    """Apply confidence routing to one probability vector."""
     ranked = sorted(
         zip(target_names, probabilities, strict=True),
         key=lambda pair: pair[1],
@@ -74,3 +51,44 @@ def predict_text(text: str, bundle: dict[str, Any], top_k: int = 3) -> dict[str,
         "decision": decision,
         "top_k": top,
     }
+
+
+def predict_text(text: str, bundle: dict[str, Any], top_k: int = 3) -> dict[str, Any]:
+    """Classify ``text`` using a model bundle and route it by confidence.
+
+    Args:
+        text: Raw document text to classify.
+        bundle: Model bundle dict. Must contain a
+            ``model`` (sklearn pipeline supporting ``predict_proba``) and
+            ``target_names`` index-aligned with the probability output.
+            ``confidence_thresholds`` is optional; missing keys fall back
+            to defaults of 0.90 / 0.70 / 0.55.
+        top_k: Number of (label, confidence) pairs to return, clamped to
+            the number of available classes.
+
+    Returns:
+        A dict with:
+            label: Final label after threshold routing (may be "other").
+            raw_label: The model's argmax label, before routing.
+            confidence: Maximum predicted probability.
+            decision: One of "auto_accept", "review_recommended",
+                "manual_review", or "fallback_other".
+            top_k: List of ``{"label": str, "confidence": float}``
+                sorted by confidence descending.
+    """
+    return predict_batch([text], bundle, top_k=top_k)[0]
+
+
+def predict_batch(texts: list[str], bundle: dict[str, Any], top_k: int = 3) -> list[dict[str, Any]]:
+    """Classify a batch of texts with one vectorized model call.
+
+    The threshold policy is identical to :func:`predict_text`; only the
+    model invocation changes from one document per call to one
+    ``predict_proba`` call for the whole batch.
+    """
+    model = bundle["model"]
+    target_names: list[str] = list(bundle["target_names"])
+    thresholds = {**DEFAULT_THRESHOLDS, **bundle.get("confidence_thresholds", {})}
+
+    probabilities = model.predict_proba(texts)
+    return [_format_prediction(row, target_names, thresholds, top_k=top_k) for row in probabilities]

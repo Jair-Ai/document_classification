@@ -10,6 +10,7 @@ import hashlib
 import logging
 import time
 import uuid
+from collections import Counter
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Annotated, Any
@@ -19,8 +20,15 @@ from fastapi import FastAPI, File, HTTPException, Query, Request, Response, Uplo
 from app.config import settings
 from app.logging import configure_logging
 from app.model_loader import load_bundle
-from app.schemas import ClassificationRequest, ClassificationResponse
-from src.predict import predict_text
+from app.schemas import (
+    BatchClassificationRequest,
+    BatchClassificationResponse,
+    BatchClassificationResult,
+    ClassificationRequest,
+    ClassificationResponse,
+)
+from app.security import enforce_api_key
+from src.predict import predict_batch, predict_text
 
 configure_logging(settings)
 
@@ -59,7 +67,9 @@ async def log_requests(
     request.state.request_id = request_id
     start = time.perf_counter()
 
-    response = await call_next(request)
+    response = enforce_api_key(request, settings)
+    if response is None:
+        response = await call_next(request)
 
     record: dict[str, Any] = {
         "request_id": request_id,
@@ -124,10 +134,72 @@ def _classify(text: str, top_k: int, request: Request) -> ClassificationResponse
     return ClassificationResponse(message="Classification successful", **result)
 
 
+def _classify_batch(
+    payload: BatchClassificationRequest,
+    request: Request,
+) -> BatchClassificationResponse:
+    """Classify multiple documents with one vectorized model call."""
+    bundle: dict[str, Any] | None = request.app.state.model_bundle
+    if bundle is None:
+        raise HTTPException(status_code=503, detail="Model is unavailable")
+
+    for index, document in enumerate(payload.documents):
+        if not document.document_text.strip():
+            detail: dict[str, Any] = {
+                "message": "document_text must not be empty",
+                "index": index,
+            }
+            if document.id is not None:
+                detail["document_id"] = document.id
+            raise HTTPException(status_code=400, detail=detail)
+
+    top_k = min(payload.top_k, len(bundle["trained_labels"]))
+    texts = [document.document_text for document in payload.documents]
+
+    try:
+        predictions = predict_batch(texts, bundle, top_k=top_k)
+    except Exception:
+        logger.exception(
+            "Unexpected error during batch classification (request_id=%s)",
+            getattr(request.state, "request_id", "-"),
+        )
+        raise HTTPException(status_code=500, detail="Unexpected classification error") from None
+
+    results = [
+        BatchClassificationResult(document_id=document.id, **prediction)
+        for document, prediction in zip(payload.documents, predictions, strict=True)
+    ]
+
+    request.state.log_fields = {
+        "batch_size": len(results),
+        "total_text_length": sum(len(text) for text in texts),
+        "labels": dict(Counter(result.label for result in results)),
+        "decisions": dict(Counter(result.decision for result in results)),
+        "text_sha256_sample": [
+            hashlib.sha256(text.encode("utf-8")).hexdigest() for text in texts[:5]
+        ],
+    }
+
+    return BatchClassificationResponse(
+        message="Batch classification successful",
+        total=len(results),
+        results=results,
+    )
+
+
 @app.post("/classify_document", response_model=ClassificationResponse)
 def classify_document(payload: ClassificationRequest, request: Request) -> ClassificationResponse:
     """Classify a single document submitted as JSON."""
     return _classify(payload.document_text, payload.top_k, request)
+
+
+@app.post("/classify_documents", response_model=BatchClassificationResponse)
+def classify_documents(
+    payload: BatchClassificationRequest,
+    request: Request,
+) -> BatchClassificationResponse:
+    """Classify multiple documents in one request."""
+    return _classify_batch(payload, request)
 
 
 @app.post("/classify-file", response_model=ClassificationResponse)

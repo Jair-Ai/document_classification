@@ -16,6 +16,7 @@ def test_production_is_default_environment(monkeypatch) -> None:
     assert config.current_env == "production"
     assert config.logging.level == "INFO"
     assert config.logging.json is True
+    assert config.security.api_key_enabled is False
 
 
 def test_development_environment_switches_logging_defaults(
@@ -28,6 +29,18 @@ def test_development_environment_switches_logging_defaults(
 
     assert config.logging.level == "DEBUG"
     assert config.logging.json is False
+
+
+def test_nested_environment_variables_override_security(monkeypatch) -> None:
+    """API-key auth can be enabled without changing settings files."""
+    monkeypatch.setenv("ENV_FOR_DYNACONF", "production")
+    monkeypatch.setenv("SECURITY__API_KEY_ENABLED", "true")
+    monkeypatch.setenv("SECURITY__API_KEY", "test-secret")
+
+    config = create_settings()
+
+    assert config.security.api_key_enabled is True
+    assert config.security.api_key == "test-secret"
 
 
 def test_nested_environment_variables_override_logging(monkeypatch) -> None:

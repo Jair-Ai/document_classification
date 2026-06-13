@@ -46,6 +46,20 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 
 Interactive API docs are available at `http://localhost:8000/docs`.
 
+For bulk synchronous inference, use `POST /classify_documents` instead
+of sending one HTTP request per document. The request is capped at 100
+documents by default (`API__MAX_BATCH_SIZE`) so memory and latency stay
+bounded.
+
+Run with Docker:
+
+```bash
+docker build -t document-classifier .
+docker run --rm -p 8000:8000 \
+  -v "$PWD/models:/app/models:ro" \
+  document-classifier
+```
+
 ## Model Decision Summary
 
 Model selection in `notebooks/02_model_experiments.ipynb` uses 5-fold
@@ -145,9 +159,13 @@ model bundle, so additional workers or replicas can be added behind a
 load balancer without coordination or sticky sessions.
 
 For bulk backfills, a batch endpoint would improve throughput by
-amortizing HTTP and JSON overhead. Transformer or LLM-based approaches
-could be useful for harder semantic or OOD cases, but they would be
-materially more expensive and slower for this topical news-style task.
+amortizing HTTP, JSON, vectorization, and model-call overhead. For
+millions of documents, the next step would be asynchronous job
+processing: queue batches through workers, write results to storage, and
+use the API for job submission/status rather than one huge synchronous
+request. Transformer or LLM-based approaches could be useful for harder
+semantic or OOD cases, but they would be materially more expensive and
+slower for this topical news-style task.
 
 ## API
 
@@ -198,6 +216,45 @@ curl -X POST http://localhost:8000/classify_document \
   -d '{"document_text": "The company reported stronger quarterly earnings as investors reacted to higher revenue and profit forecasts.", "top_k": 3}'
 ```
 
+### `POST /classify_documents`
+
+Batch endpoint for synchronous bulk classification. This endpoint makes
+one vectorized model call for the submitted texts, reducing HTTP and
+model overhead compared with many single-document calls.
+
+Request:
+
+```json
+{
+  "documents": [
+    {"id": "doc-1", "document_text": "The company reported stronger quarterly earnings..."},
+    {"id": "doc-2", "document_text": "The striker scored twice in the final..."}
+  ],
+  "top_k": 3
+}
+```
+
+Response:
+
+```json
+{
+  "message": "Batch classification successful",
+  "total": 2,
+  "results": [
+    {
+      "document_id": "doc-1",
+      "label": "business",
+      "raw_label": "business",
+      "confidence": 0.1985,
+      "decision": "manual_review",
+      "top_k": [
+        {"label": "business", "confidence": 0.1985}
+      ]
+    }
+  ]
+}
+```
+
 ### `POST /classify-file`
 
 Multipart `.txt` upload endpoint. The file is decoded as UTF-8 with
@@ -215,6 +272,7 @@ curl -X POST "http://localhost:8000/classify-file?top_k=3" \
 |---|---|---|
 | 200 | Classification succeeded | `ClassificationResponse` |
 | 400 | Whitespace-only text or non-`.txt` upload | `{"detail": "document_text must not be empty"}` |
+| 401 | API key missing or invalid when enabled | `{"detail": "Invalid or missing API key"}` |
 | 422 | Schema validation failure | FastAPI validation detail |
 | 503 | Model artifact missing or unloadable | `{"detail": "Model is unavailable"}` |
 | 500 | Unexpected inference failure | `{"detail": "Unexpected classification error"}` |
@@ -229,9 +287,12 @@ with double-underscore environment variables:
 ENV_FOR_DYNACONF=production
 MODEL_PATH=/opt/models/classifier_v2.joblib
 API__MAX_DOCUMENT_LENGTH=50000
+API__MAX_BATCH_SIZE=100
 API__DEFAULT_TOP_K=5
 LOGGING__LEVEL=DEBUG
 LOGGING__JSON=false
+SECURITY__API_KEY_ENABLED=true
+SECURITY__API_KEY=change-me
 ```
 
 `MODEL_PATH` is resolved at load time, with the environment variable
@@ -247,6 +308,11 @@ request; development can use console logs by setting
 Request logs include request ID, method, path, status code, latency,
 predicted label, confidence, decision, text length, and SHA-256 text
 hash. Raw document text is never logged.
+
+API-key protection is optional and disabled by default for local
+evaluation. Enable it in deployed environments with
+`SECURITY__API_KEY_ENABLED=true` and send the key in `X-API-Key`.
+`/health` remains unauthenticated for platform health checks.
 
 A missing or corrupt model artifact does not crash the service. The app
 stays up, `/health` reports `model_loaded: false`, and classification
@@ -267,7 +333,7 @@ Current gate results:
 - Ruff format/check: pass
 - basedpyright: pass
 - pip-audit: no known vulnerabilities found
-- pytest: 31 passed, 1 third-party deprecation warning from Starlette
+- pytest: 45 passed, 1 third-party deprecation warning from Starlette
 
 ## Jupyter Workflow
 
@@ -290,9 +356,9 @@ narrative analysis rather than importable modules.
 
 ## Future Improvements
 
-- Add authentication and rate limiting at the service or gateway layer.
-- Add a batch classification endpoint for high-throughput backfills.
+- Add rate limiting at the service or gateway layer.
+- Add async job processing for million-document backfills.
 - Collect a larger, representative OOD set and retune fallback routing.
 - Add model/version metadata to `/health`.
 - Export Prometheus metrics for latency, throughput, and decision mix.
-- Add a Dockerfile for containerized deployment.
+- Add Docker Compose for local API smoke testing with mounted artifacts.

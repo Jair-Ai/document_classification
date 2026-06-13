@@ -7,7 +7,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 
-from src.predict import predict_text
+from src.predict import predict_batch, predict_text
 
 
 @pytest.fixture()
@@ -99,3 +99,17 @@ def test_low_confidence_prediction_falls_back_to_other(tiny_bundle: dict[str, An
     assert result["confidence"] < tiny_bundle["confidence_thresholds"]["other"]
     assert result["label"] == "other"
     assert result["decision"] == "fallback_other"
+
+
+def test_predict_batch_matches_single_prediction_contract(tiny_bundle: dict[str, Any]) -> None:
+    """Batch predictions share the same routing contract as single predictions."""
+    texts = [
+        "The company reported higher revenue and profits to investors.",
+        "The tennis player won the championship match.",
+    ]
+
+    batch_results = predict_batch(texts, tiny_bundle, top_k=2)
+    single_results = [predict_text(text, tiny_bundle, top_k=2) for text in texts]
+
+    assert len(batch_results) == 2
+    assert batch_results == single_results
