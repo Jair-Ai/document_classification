@@ -1,0 +1,65 @@
+{
+  "model": "logistic_regression",
+  "random_state": 42,
+  "val_size": 0.15,
+  "test_size": 0.15,
+  "known_documents_after_dedup": 992,
+  "other_holdout_documents": 6,
+  "duplicate_report": {
+    "total_removed": 8,
+    "cross_class_removed": 0,
+    "business": 1,
+    "entertainment": 2,
+    "politics": 2,
+    "sport": 2,
+    "technology": 1
+  },
+  "empty_files": [],
+  "split_counts": {
+    "train": {
+      "total": 694,
+      "by_label": {
+        "business": 69,
+        "entertainment": 69,
+        "food": 70,
+        "graphics": 70,
+        "historical": 70,
+        "medical": 70,
+        "politics": 69,
+        "space": 70,
+        "sport": 68,
+        "technology": 69
+      }
+    },
+    "validation": {
+      "total": 149,
+      "by_label": {
+        "business": 15,
+        "entertainment": 14,
+        "food": 15,
+        "graphics": 15,
+        "historical": 15,
+        "medical": 15,
+        "politics": 15,
+        "space": 15,
+        "sport": 15,
+        "technology": 15
+      }
+    },
+    "test": {
+      "total": 149,
+      "by_label": {
+        "business": 15,
+        "entertainment": 15,
+        "food": 15,
+        "graphics": 15,
+        "historical": 15,
+        "medical": 15,
+        "politics": 14,
+        "space": 15,
+        "sport": 15,
+        "technology": 15
+      }
+    }
+  }
+}
