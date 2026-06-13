@@ -8,6 +8,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from src.config import THRESHOLD_SEARCH
+
 
 @dataclass(frozen=True)
 class ThresholdChoice:
@@ -78,7 +80,16 @@ def threshold_tradeoffs(
     "caught" by the same rule.
     """
     if thresholds is None:
-        thresholds = [round(value, 2) for value in np.arange(0.10, 0.66, 0.05)]
+        count = int(
+            round(
+                (THRESHOLD_SEARCH.other_max - THRESHOLD_SEARCH.other_min)
+                / THRESHOLD_SEARCH.other_step
+            )
+        ) + 1
+        thresholds = [
+            round(THRESHOLD_SEARCH.other_min + index * THRESHOLD_SEARCH.other_step, 2)
+            for index in range(count)
+        ]
 
     known_conf = top_confidences(bundle, known_texts)
     other_conf = top_confidences(bundle, other_texts) if other_texts else np.array([])
@@ -110,7 +121,7 @@ def threshold_tradeoff_table(rows: list[ThresholdTradeoff]) -> pd.DataFrame:
 
 def choose_other_threshold(
     rows: list[ThresholdTradeoff],
-    max_known_misroute_pct: float = 0.05,
+    max_known_misroute_pct: float = THRESHOLD_SEARCH.max_known_misroute_pct,
 ) -> ThresholdChoice:
     """Pick the highest OOD catch rate under a known-recall guardrail."""
     eligible = [row for row in rows if row.known_misrouted_pct <= max_known_misroute_pct]

@@ -22,7 +22,7 @@ from src.confidence_analysis import (
     threshold_tradeoffs,
     top_confidences,
 )
-from src.config import RANDOM_STATE, TRAINED_LABELS
+from src.config import DEFAULT_THRESHOLDS, RANDOM_STATE, THRESHOLD_SEARCH, TRAINED_LABELS
 from src.data_loader import load_dataset
 from src.predict import predict_text
 from src.train import stratified_split
@@ -168,8 +168,8 @@ def tune_and_save_thresholds(
     thresholds = dict(bundle.get("confidence_thresholds", {}))
     thresholds.update(
         {
-            "auto_accept": 0.90,
-            "manual_review": 0.70,
+            "auto_accept": DEFAULT_THRESHOLDS["auto_accept"],
+            "manual_review": DEFAULT_THRESHOLDS["manual_review"],
             "other": choice.other_threshold,
         }
     )
@@ -186,6 +186,12 @@ def tune_and_save_thresholds(
     )
     selection = {
         "confidence_thresholds": thresholds,
+        "threshold_search": {
+            "other_min": THRESHOLD_SEARCH.other_min,
+            "other_max": THRESHOLD_SEARCH.other_max,
+            "other_step": THRESHOLD_SEARCH.other_step,
+            "max_known_misroute_pct": THRESHOLD_SEARCH.max_known_misroute_pct,
+        },
         "selection_basis": "validation known-label misroute guardrail plus anecdotal OOD holdout",
         "reason": choice.reason,
         "other_holdout_note": (

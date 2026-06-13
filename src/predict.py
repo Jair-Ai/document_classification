@@ -7,11 +7,7 @@ and the evaluation code share identical behavior.
 
 from typing import Any
 
-DEFAULT_THRESHOLDS: dict[str, float] = {
-    "auto_accept": 0.90,
-    "manual_review": 0.70,
-    "other": 0.55,
-}
+from src.config import DEFAULT_THRESHOLDS
 
 FALLBACK_LABEL = "other"
 
@@ -62,7 +58,7 @@ def predict_text(text: str, bundle: dict[str, Any], top_k: int = 3) -> dict[str,
             ``model`` (sklearn pipeline supporting ``predict_proba``) and
             ``target_names`` index-aligned with the probability output.
             ``confidence_thresholds`` is optional; missing keys fall back
-            to defaults of 0.90 / 0.70 / 0.55.
+            to the defaults in ``config/model.toml``.
         top_k: Number of (label, confidence) pairs to return, clamped to
             the number of available classes.
 

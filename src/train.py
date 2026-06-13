@@ -21,18 +21,14 @@ from sklearn.pipeline import Pipeline
 from sklearn.svm import LinearSVC
 
 from src.config import (
+    CALIBRATION,
+    DEFAULT_THRESHOLDS,
     EXCLUDED_TRAINING_LABELS,
     LABEL_ALIASES,
     RANDOM_STATE,
     TRAINED_LABELS,
 )
 from src.data_loader import DatasetBundle, load_dataset
-
-DEFAULT_THRESHOLDS = {
-    "auto_accept": 0.90,
-    "manual_review": 0.70,
-    "other": 0.55,
-}
 
 
 def build_model(model_name: str) -> Pipeline:
@@ -57,8 +53,8 @@ def build_model(model_name: str) -> Pipeline:
     elif model_name == "calibrated_linear_svc":
         classifier = CalibratedClassifierCV(
             estimator=LinearSVC(class_weight="balanced", random_state=RANDOM_STATE),
-            method="sigmoid",
-            cv=5,
+            method=CALIBRATION.method,
+            cv=CALIBRATION.cv,
         )
     else:
         raise ValueError(f"Unsupported model '{model_name}'")
@@ -127,7 +123,7 @@ def make_bundle(model: Pipeline, model_type: str, target_names: list[str]) -> di
         "trained_labels": TRAINED_LABELS,
         "excluded_training_labels": EXCLUDED_TRAINING_LABELS,
         "label_aliases": LABEL_ALIASES,
-        "confidence_thresholds": DEFAULT_THRESHOLDS,
+        "confidence_thresholds": dict(DEFAULT_THRESHOLDS),
     }
 
 

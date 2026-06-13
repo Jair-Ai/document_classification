@@ -4,6 +4,12 @@
     "manual_review": 0.7,
     "other": 0.15
   },
+  "threshold_search": {
+    "other_min": 0.1,
+    "other_max": 0.65,
+    "other_step": 0.05,
+    "max_known_misroute_pct": 0.05
+  },
   "selection_basis": "validation known-label misroute guardrail plus anecdotal OOD holdout",
   "reason": "Chose the highest OOD catch count with known misroutes <= 5% on validation.",
   "other_holdout_note": "The OOD side has only six files, so it is useful as a smoke check but too small for a statistically stable threshold."
