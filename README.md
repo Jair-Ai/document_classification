@@ -60,6 +60,11 @@ docker run --rm -p 8000:8000 \
   document-classifier
 ```
 
+An AWS deployment plan is documented in `infra/README.md`. It outlines
+ECS Fargate, ECR, ALB, Secrets Manager, CloudWatch Logs, S3 model
+artifacts, autoscaling, and a queue-backed worker path for
+million-document backfills.
+
 ## Model Decision Summary
 
 Model selection in `notebooks/02_model_experiments.ipynb` uses 5-fold
@@ -358,6 +363,8 @@ narrative analysis rather than importable modules.
 
 - Add rate limiting at the service or gateway layer.
 - Add async job processing for million-document backfills.
+- Add Terraform modules once AWS account, VPC, domain, and deployment
+  constraints are known.
 - Collect a larger, representative OOD set and retune fallback routing.
 - Add model/version metadata to `/health`.
 - Export Prometheus metrics for latency, throughput, and decision mix.
