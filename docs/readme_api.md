@@ -196,6 +196,7 @@ LOGGING__LEVEL=DEBUG                          # nested [logging] keys
 LOGGING__JSON=false
 SECURITY__API_KEY_ENABLED=true                # optional API key auth
 SECURITY__API_KEY=change-me
+SECURITY__CORS_ALLOWED_ORIGINS='["https://app.example.com"]'
 ```
 
 `MODEL_PATH` is resolved at load time (env var first, then
@@ -244,6 +245,7 @@ deployed environment, enable it with:
 SECURITY__API_KEY_ENABLED=true
 SECURITY__API_KEY=change-me
 SECURITY__API_KEY_HEADER=X-API-Key
+SECURITY__CORS_ALLOWED_ORIGINS='["https://app.example.com"]'
 ```
 
 Clients then include:
@@ -257,6 +259,13 @@ curl -X POST http://localhost:8000/classify_document \
 
 `/health` remains public for platform health checks. Classification
 endpoints return 401 when the API key is missing or invalid.
+
+By default the API is intended for server-to-server use behind a load
+balancer, so browser origins are denied unless
+`SECURITY__CORS_ALLOWED_ORIGINS` is set to an explicit allowlist. The
+API emits `X-Content-Type-Options`, `Referrer-Policy`, and
+`X-Frame-Options` headers on responses; HSTS should be enforced at the
+TLS terminator or edge.
 
 ### Payload cap rationale
 

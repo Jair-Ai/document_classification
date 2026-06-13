@@ -38,6 +38,8 @@ configure_logging(settings)
 logger = logging.getLogger(__name__)
 request_logger = logging.getLogger("app.requests")
 
+DEFAULT_CORS_METHODS = "GET, POST, OPTIONS"
+
 class RequestBodyTooLargeError(Exception):
     """Raised when a request body exceeds the configured byte budget."""
 
@@ -74,6 +76,50 @@ def _max_request_bytes(scope: Scope) -> int:
         int(settings.api.max_batch_size) * int(settings.api.max_document_length) * 4
         + _multipart_overhead_bytes(),
     )
+
+
+def _security_headers() -> dict[str, str]:
+    """Static response headers for the JSON API surface."""
+    return {
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "no-referrer",
+        "X-Frame-Options": "DENY",
+    }
+
+
+def _cors_allowed_origins() -> set[str]:
+    """Return the configured browser origins allowed to call the API."""
+    origins = getattr(settings.security, "cors_allowed_origins", [])
+    if isinstance(origins, str):
+        if not origins.strip():
+            return set()
+        return {origin.strip() for origin in origins.split(",") if origin.strip()}
+    return {str(origin).strip() for origin in origins if str(origin).strip()}
+
+
+def _cors_headers(origin: str | None) -> dict[str, str]:
+    """Return simple-response CORS headers for an allowed origin."""
+    if origin is None or origin not in _cors_allowed_origins():
+        return {}
+    return {
+        "Access-Control-Allow-Origin": origin,
+        "Vary": "Origin",
+    }
+
+
+def _preflight_headers(origin: str) -> dict[str, str]:
+    """Return preflight headers for an allowed browser origin."""
+    allowed_headers = {"Authorization", "Content-Type"}
+    api_key_header = str(getattr(settings.security, "api_key_header", "X-API-Key")).strip()
+    if api_key_header:
+        allowed_headers.add(api_key_header)
+
+    return {
+        **_security_headers(),
+        **_cors_headers(origin),
+        "Access-Control-Allow-Methods": DEFAULT_CORS_METHODS,
+        "Access-Control-Allow-Headers": ", ".join(sorted(allowed_headers)),
+    }
 
 
 class RequestSizeLimitMiddleware:
@@ -124,6 +170,7 @@ class RequestSizeLimitMiddleware:
             status_code=413,
             content={"detail": f"Request body exceeds {max_bytes} bytes"},
         )
+        response.headers.update(_security_headers())
         await response(scope, receive, send)
 
 
@@ -169,9 +216,24 @@ async def log_requests(
     request.state.request_id = request_id
     start = time.perf_counter()
 
-    response = enforce_api_key(request, settings)
-    if response is None:
-        response = await call_next(request)
+    origin = request.headers.get("origin")
+    is_preflight = (
+        request.method == "OPTIONS"
+        and origin is not None
+        and request.headers.get("access-control-request-method") is not None
+    )
+
+    if is_preflight:
+        if origin in _cors_allowed_origins():
+            response = Response(status_code=204)
+            response.headers.update(_preflight_headers(origin))
+        else:
+            response = JSONResponse(status_code=400, content={"detail": "CORS origin not allowed"})
+            response.headers.update(_security_headers())
+    else:
+        response = enforce_api_key(request, settings)
+        if response is None:
+            response = await call_next(request)
 
     record: dict[str, Any] = {
         "request_id": request_id,
@@ -183,6 +245,8 @@ async def log_requests(
     record.update(getattr(request.state, "log_fields", {}))
     request_logger.info(record)
 
+    response.headers.update(_security_headers())
+    response.headers.update(_cors_headers(origin))
     response.headers["X-Request-ID"] = request_id
     return response
 

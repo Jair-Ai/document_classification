@@ -58,6 +58,36 @@ def _settings_with_request_limits(
     )
 
 
+def _settings_with_security(
+    *,
+    cors_allowed_origins: list[str] | None = None,
+    api_key_enabled: bool | None = None,
+    api_key: str | None = None,
+    api_key_header: str | None = None,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        api=settings.api,
+        security=SimpleNamespace(
+            api_key_enabled=(
+                getattr(settings.security, "api_key_enabled", False)
+                if api_key_enabled is None
+                else api_key_enabled
+            ),
+            api_key=getattr(settings.security, "api_key", "") if api_key is None else api_key,
+            api_key_header=(
+                getattr(settings.security, "api_key_header", "X-API-Key")
+                if api_key_header is None
+                else api_key_header
+            ),
+            cors_allowed_origins=(
+                getattr(settings.security, "cors_allowed_origins", [])
+                if cors_allowed_origins is None
+                else cors_allowed_origins
+            ),
+        ),
+    )
+
+
 class TestHealth:
     def test_health_ok_with_model_loaded(self, client: TestClient) -> None:
         response = client.get("/health")
@@ -70,6 +100,58 @@ class TestHealth:
 
         assert response.status_code == 200
         assert response.json() == {"status": "ok", "model_loaded": False}
+
+
+class TestSecurityHeaders:
+    def test_responses_include_security_headers(self, client: TestClient) -> None:
+        response = client.get("/health")
+
+        assert response.status_code == 200
+        assert response.headers["x-content-type-options"] == "nosniff"
+        assert response.headers["referrer-policy"] == "no-referrer"
+        assert response.headers["x-frame-options"] == "DENY"
+
+    def test_preflight_returns_allowlist_headers_for_configured_origin(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            app.main,
+            "settings",
+            _settings_with_security(cors_allowed_origins=["https://app.example.com"]),
+        )
+
+        response = client.options(
+            "/classify_document",
+            headers={
+                "Origin": "https://app.example.com",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+
+        assert response.status_code == 204
+        assert response.headers["access-control-allow-origin"] == "https://app.example.com"
+        assert response.headers["access-control-allow-methods"] == "GET, POST, OPTIONS"
+        assert "X-API-Key" in response.headers["access-control-allow-headers"]
+
+    def test_preflight_rejects_unconfigured_origin(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            app.main,
+            "settings",
+            _settings_with_security(cors_allowed_origins=["https://app.example.com"]),
+        )
+
+        response = client.options(
+            "/classify_document",
+            headers={
+                "Origin": "https://evil.example.com",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+
+        assert response.status_code == 400
+        assert response.json() == {"detail": "CORS origin not allowed"}
 
 
 class TestClassifyDocument:
@@ -298,6 +380,7 @@ class TestApiKeyAuth:
                 api_key_enabled=enabled,
                 api_key=key,
                 api_key_header=header,
+                cors_allowed_origins=getattr(settings.security, "cors_allowed_origins", []),
             ),
         )
 

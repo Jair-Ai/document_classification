@@ -46,6 +46,10 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 
 Interactive API docs are available at `http://localhost:8000/docs`.
 
+By default the API is configured for server-to-server use behind a load
+balancer. Browser origins are denied unless
+`SECURITY__CORS_ALLOWED_ORIGINS` is set to an explicit allowlist.
+
 For bulk synchronous inference, use `POST /classify_documents` instead
 of sending one HTTP request per document. The request is capped at 100
 documents by default (`API__MAX_BATCH_SIZE`) so memory and latency stay
@@ -306,6 +310,7 @@ LOGGING__LEVEL=DEBUG
 LOGGING__JSON=false
 SECURITY__API_KEY_ENABLED=true
 SECURITY__API_KEY=change-me
+SECURITY__CORS_ALLOWED_ORIGINS='["https://app.example.com"]'
 ```
 
 `MODEL_PATH` is resolved at load time, with the environment variable
@@ -326,6 +331,11 @@ API-key protection is optional and disabled by default for local
 evaluation. Enable it in deployed environments with
 `SECURITY__API_KEY_ENABLED=true` and send the key in `X-API-Key`.
 `/health` remains unauthenticated for platform health checks.
+`SECURITY__CORS_ALLOWED_ORIGINS` can be set to an explicit browser
+origin allowlist when the API is called directly from front-end clients.
+Responses also include `X-Content-Type-Options`, `Referrer-Policy`, and
+`X-Frame-Options`; HSTS remains an edge concern owned by the public TLS
+terminator.
 
 A missing or corrupt model artifact does not crash the service. The app
 stays up, `/health` reports `model_loaded: false`, and classification

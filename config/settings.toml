@@ -13,6 +13,7 @@
 #   LOGGING__JSON=false
 #   SECURITY__API_KEY_ENABLED=true
 #   SECURITY__API_KEY=change-me
+#   SECURITY__CORS_ALLOWED_ORIGINS='["https://app.example.com"]'
 
 [default]
 model_path = "models/document_classifier.joblib"
@@ -38,6 +39,7 @@ include_request_id = true
 api_key_enabled = false
 api_key = ""
 api_key_header = "X-API-Key"
+cors_allowed_origins = []
 
 [development.logging]
 level = "DEBUG"

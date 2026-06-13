@@ -117,10 +117,17 @@ Current application-level protection is optional static API-key auth via
 `X-API-Key`. In AWS I would also add:
 
 - TLS via ACM on the ALB.
+- HSTS at the ALB, CloudFront, or another public TLS terminator rather
+  than inside the container.
 - Secrets Manager or SSM for the API key.
 - IAM roles scoped to only the needed S3 model artifact path.
 - Private ECS tasks with public ingress only through the ALB.
 - AWS WAF or gateway-level rate limiting if the API is internet-facing.
+
+The application itself emits lightweight JSON-API headers
+(`X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`) and
+keeps CORS disabled unless an explicit browser-origin allowlist is
+configured.
 
 If this became a multi-tenant product, API keys should move from a
 single secret to hashed keys in a database with revocation, scopes,
