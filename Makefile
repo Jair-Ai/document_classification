@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install sample-model bootstrap full-model train evaluate serve test lint format typecheck docker-build docker-run
+.PHONY: help install sample-model bootstrap full-model train evaluate serve test coverage lint format typecheck docker-build docker-run
 
 DATA_DIR ?= data/trellis_assessment_ds
 MODEL ?= models/document_classifier.joblib
@@ -32,6 +32,10 @@ serve: ## Run the API locally
 
 test: ## Run the fast unit tests
 	uv run pytest -m "not integration"
+
+coverage: ## Run unit tests with coverage (term + XML + HTML reports)
+	uv run pytest -m "not integration" --cov=app --cov=src \
+		--cov-report=term-missing --cov-report=xml --cov-report=html
 
 lint: ## Lint with ruff
 	uv run ruff check .

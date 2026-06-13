@@ -21,6 +21,7 @@ dev = [
     "matplotlib>=3.11.0",
     "pip-audit>=2.10.1",
     "pytest>=9.0.3",
+    "pytest-cov>=7.0.0",
     "ruff>=0.15.17",
     "seaborn>=0.13.2",
 ]
@@ -33,6 +34,23 @@ markers = [
 # present locally or in CI, so exclude them from the default run. Opt in with
 # `pytest -m integration`.
 addopts = "-m 'not integration'"
+
+[tool.coverage.run]
+source = ["app", "src"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+# Gate set below the measured unit-suite coverage (~73%) for headroom. The
+# src pipeline modules (train/evaluate/data_loader) are exercised mainly by
+# the opt-in integration suite; run `pytest -m integration` for fuller numbers.
+fail_under = 70
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
 
 [tool.ruff]
 line-length = 100

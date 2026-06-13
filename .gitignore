@@ -18,6 +18,12 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
+# Coverage artifacts
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
 # Note: reports/*.csv, reports/*.json, and reports/*.txt are deliberately
 # tracked — small generated report artifacts are part of the deliverable.
 

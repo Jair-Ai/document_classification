@@ -541,6 +541,7 @@ uv run basedpyright
 uv run pip-audit
 uv run pytest -q                 # fast suite (integration excluded by default)
 uv run pytest -m integration     # real artifact + dataset, end-to-end
+make coverage                    # fast suite + coverage (term + XML + HTML)
 ```
 
 Current gate results:
@@ -548,8 +549,13 @@ Current gate results:
 - Ruff format/check: pass
 - basedpyright: pass
 - pip-audit: no known vulnerabilities found
-- pytest: 60 passed (fast suite); 12 passed (integration). One third-party
+- pytest: 63 passed (fast suite); 12 passed (integration). One third-party
   deprecation warning from Starlette.
+- Coverage: ~73% on the fast suite, gated at 70% (`fail_under` in
+  `pyproject.toml`). The API layer (`app/`) is 76–100% covered; the `src`
+  pipeline modules (`train`, `evaluate`, `data_loader`) are covered mainly by
+  the opt-in integration suite, so run `pytest -m integration` for fuller
+  numbers.
 
 ### Continuous integration
 
@@ -559,7 +565,7 @@ each failure is isolated:
 
 - `lint` — `ruff check` + `ruff format --check`
 - `typecheck` — `basedpyright`
-- `test` — fast `pytest` suite
+- `test` — fast `pytest` suite with coverage (gated at 70%; `coverage.xml` uploaded as an artifact)
 - `audit` — `pip-audit`
 - `docker` — builds the image, smoke-tests `/health`, and pushes to GHCR on `main`
 - `integration` — real-artifact suite, non-blocking (the artifact/dataset may
