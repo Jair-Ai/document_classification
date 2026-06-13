@@ -50,6 +50,9 @@ The container should receive configuration through environment variables:
 ```bash
 ENV_FOR_DYNACONF=production
 MODEL_PATH=/app/models/document_classifier.joblib
+API__MAX_DOCUMENT_LENGTH=100000
+API__MAX_FILE_UPLOAD_BYTES=400000
+API__MAX_REQUEST_BYTES=50000000
 API__MAX_BATCH_SIZE=100
 LOGGING__JSON=true
 SECURITY__API_KEY_ENABLED=true

@@ -6,6 +6,7 @@ the process is stateless and can be scaled horizontally with multiple
 workers (e.g. ``uvicorn app.main:app --workers 4``).
 """
 
+import codecs
 import hashlib
 import logging
 import time
@@ -16,6 +17,8 @@ from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
 from fastapi import FastAPI, File, HTTPException, Query, Request, Response, UploadFile
+from starlette.responses import JSONResponse
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.config import settings
 from app.logging import configure_logging
@@ -35,6 +38,104 @@ configure_logging(settings)
 logger = logging.getLogger(__name__)
 request_logger = logging.getLogger("app.requests")
 
+class RequestBodyTooLargeError(Exception):
+    """Raised when a request body exceeds the configured byte budget."""
+
+
+def _configured_int(name: str, default: int) -> int:
+    """Read an integer API setting with a fallback for older configs."""
+    return int(getattr(settings.api, name, default))
+
+
+def _upload_chunk_size_bytes() -> int:
+    """Chunk size used when incrementally reading uploaded files."""
+    return _configured_int("upload_chunk_size_bytes", 64 * 1024)
+
+
+def _multipart_overhead_bytes() -> int:
+    """Multipart framing allowance added to request byte budgets."""
+    return _configured_int("multipart_overhead_bytes", 64 * 1024)
+
+
+def _max_file_upload_bytes() -> int:
+    """Maximum decoded endpoint file payload in raw bytes."""
+    return _configured_int(
+        "max_file_upload_bytes",
+        int(settings.api.max_document_length) * 4,
+    )
+
+
+def _max_request_bytes(scope: Scope) -> int:
+    """Return the byte limit for the incoming request body."""
+    if scope.get("path") == "/classify-file":
+        return _max_file_upload_bytes() + _multipart_overhead_bytes()
+    return _configured_int(
+        "max_request_bytes",
+        int(settings.api.max_batch_size) * int(settings.api.max_document_length) * 4
+        + _multipart_overhead_bytes(),
+    )
+
+
+class RequestSizeLimitMiddleware:
+    """Reject oversized HTTP request bodies by Content-Length or streamed bytes."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        max_bytes = _max_request_bytes(scope)
+        content_length = _content_length(scope)
+        if content_length is not None and content_length > max_bytes:
+            await self._send_413(scope, receive, send, max_bytes)
+            return
+
+        received_bytes = 0
+        response_started = False
+
+        async def limited_receive() -> Message:
+            nonlocal received_bytes
+            message = await receive()
+            if message["type"] == "http.request":
+                received_bytes += len(message.get("body", b""))
+                if received_bytes > max_bytes:
+                    raise RequestBodyTooLargeError
+            return message
+
+        async def tracking_send(message: Message) -> None:
+            nonlocal response_started
+            if message["type"] == "http.response.start":
+                response_started = True
+            await send(message)
+
+        try:
+            await self.app(scope, limited_receive, tracking_send)
+        except RequestBodyTooLargeError:
+            if response_started:
+                raise
+            await self._send_413(scope, receive, send, max_bytes)
+
+    @staticmethod
+    async def _send_413(scope: Scope, receive: Receive, send: Send, max_bytes: int) -> None:
+        response = JSONResponse(
+            status_code=413,
+            content={"detail": f"Request body exceeds {max_bytes} bytes"},
+        )
+        await response(scope, receive, send)
+
+
+def _content_length(scope: Scope) -> int | None:
+    for raw_name, raw_value in scope.get("headers", []):
+        if raw_name == b"content-length":
+            try:
+                return int(raw_value)
+            except ValueError:
+                return None
+    return None
+
 
 @asynccontextmanager
 async def lifespan(application: FastAPI) -> AsyncIterator[None]:
@@ -50,6 +151,7 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+app.add_middleware(RequestSizeLimitMiddleware)
 
 
 @app.middleware("http")
@@ -187,6 +289,44 @@ def _classify_batch(
     )
 
 
+async def _read_upload_text(file: UploadFile) -> str:
+    """Decode an upload incrementally while enforcing byte and character caps."""
+    max_bytes = _max_file_upload_bytes()
+    max_chars = int(settings.api.max_document_length)
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="ignore")
+    parts: list[str] = []
+    total_bytes = 0
+    total_chars = 0
+
+    while chunk := await file.read(_upload_chunk_size_bytes()):
+        total_bytes += len(chunk)
+        if total_bytes > max_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"Uploaded file exceeds {max_bytes} bytes",
+            )
+
+        text_chunk = decoder.decode(chunk)
+        total_chars += len(text_chunk)
+        if total_chars > max_chars:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Decoded file exceeds {max_chars} characters",
+            )
+        parts.append(text_chunk)
+
+    tail = decoder.decode(b"", final=True)
+    total_chars += len(tail)
+    if total_chars > max_chars:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Decoded file exceeds {max_chars} characters",
+        )
+    parts.append(tail)
+
+    return "".join(parts)
+
+
 @app.post("/classify_document", response_model=ClassificationResponse)
 def classify_document(payload: ClassificationRequest, request: Request) -> ClassificationResponse:
     """Classify a single document submitted as JSON."""
@@ -221,14 +361,6 @@ async def classify_file(
     if not filename.lower().endswith(".txt"):
         raise HTTPException(status_code=400, detail="Only .txt files are supported")
 
-    raw = await file.read()
-    text = raw.decode("utf-8", errors="ignore")
-
-    max_length = int(settings.api.max_document_length)
-    if len(text) > max_length:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Decoded file exceeds {max_length} characters",
-        )
+    text = await _read_upload_text(file)
 
     return _classify(text, top_k, request)

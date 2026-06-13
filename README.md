@@ -51,6 +51,11 @@ of sending one HTTP request per document. The request is capped at 100
 documents by default (`API__MAX_BATCH_SIZE`) so memory and latency stay
 bounded.
 
+Request-body guardrails are configurable via Dynaconf environment
+variables such as `API__MAX_FILE_UPLOAD_BYTES`,
+`API__UPLOAD_CHUNK_SIZE_BYTES`, `API__MULTIPART_OVERHEAD_BYTES`, and
+`API__MAX_REQUEST_BYTES`.
+
 Run with Docker:
 
 ```bash
@@ -278,6 +283,7 @@ curl -X POST "http://localhost:8000/classify-file?top_k=3" \
 | 200 | Classification succeeded | `ClassificationResponse` |
 | 400 | Whitespace-only text or non-`.txt` upload | `{"detail": "document_text must not be empty"}` |
 | 401 | API key missing or invalid when enabled | `{"detail": "Invalid or missing API key"}` |
+| 413 | Raw request/upload exceeds configured byte limits | `{"detail": "Request body exceeds ... bytes"}` |
 | 422 | Schema validation failure | FastAPI validation detail |
 | 503 | Model artifact missing or unloadable | `{"detail": "Model is unavailable"}` |
 | 500 | Unexpected inference failure | `{"detail": "Unexpected classification error"}` |
@@ -292,6 +298,8 @@ with double-underscore environment variables:
 ENV_FOR_DYNACONF=production
 MODEL_PATH=/opt/models/classifier_v2.joblib
 API__MAX_DOCUMENT_LENGTH=50000
+API__MAX_FILE_UPLOAD_BYTES=200000
+API__MAX_REQUEST_BYTES=20000000
 API__MAX_BATCH_SIZE=100
 API__DEFAULT_TOP_K=5
 LOGGING__LEVEL=DEBUG

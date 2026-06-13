@@ -20,6 +20,44 @@ RESPONSE_FIELDS = {"message", "label", "raw_label", "confidence", "decision", "t
 VALID_DECISIONS = {"auto_accept", "review_recommended", "manual_review", "fallback_other"}
 
 
+def _settings_with_request_limits(
+    *,
+    max_request_bytes: int | None = None,
+    max_file_upload_bytes: int | None = None,
+    upload_chunk_size_bytes: int | None = None,
+    multipart_overhead_bytes: int | None = None,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        api=SimpleNamespace(
+            min_document_length=settings.api.min_document_length,
+            max_document_length=settings.api.max_document_length,
+            max_file_upload_bytes=(
+                settings.api.max_file_upload_bytes
+                if max_file_upload_bytes is None
+                else max_file_upload_bytes
+            ),
+            max_request_bytes=(
+                settings.api.max_request_bytes if max_request_bytes is None else max_request_bytes
+            ),
+            upload_chunk_size_bytes=(
+                settings.api.upload_chunk_size_bytes
+                if upload_chunk_size_bytes is None
+                else upload_chunk_size_bytes
+            ),
+            multipart_overhead_bytes=(
+                settings.api.multipart_overhead_bytes
+                if multipart_overhead_bytes is None
+                else multipart_overhead_bytes
+            ),
+            default_top_k=settings.api.default_top_k,
+            min_top_k=settings.api.min_top_k,
+            max_top_k=settings.api.max_top_k,
+            max_batch_size=settings.api.max_batch_size,
+        ),
+        security=settings.security,
+    )
+
+
 class TestHealth:
     def test_health_ok_with_model_loaded(self, client: TestClient) -> None:
         response = client.get("/health")
@@ -206,6 +244,22 @@ class TestValidationErrors:
 
         assert response.status_code == 422
 
+    def test_request_body_above_byte_limit_returns_413(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            app.main, "settings", _settings_with_request_limits(max_request_bytes=20)
+        )
+
+        response = client.post(
+            "/classify_document",
+            content=b'{"document_text":"this body is too large"}',
+            headers={"Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 413
+        assert response.json() == {"detail": "Request body exceeds 20 bytes"}
+
 
 class TestInferenceFailure:
     def test_unexpected_inference_error_returns_500(
@@ -367,6 +421,21 @@ class TestClassifyFile:
         response = client.post("/classify-file", files=self._upload("doc.txt", b"a" * 100_001))
 
         assert response.status_code == 422
+
+    def test_upload_above_byte_limit_returns_413(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            app.main, "settings", _settings_with_request_limits(max_file_upload_bytes=10)
+        )
+
+        response = client.post(
+            "/classify-file",
+            files=self._upload("doc.txt", VALID_TEXT.encode("utf-8")),
+        )
+
+        assert response.status_code == 413
+        assert response.json() == {"detail": "Uploaded file exceeds 10 bytes"}
 
     def test_file_upload_without_model_returns_503(self, degraded_client: TestClient) -> None:
         response = degraded_client.post(

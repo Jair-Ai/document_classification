@@ -161,6 +161,7 @@ storage; this endpoint is the bounded synchronous path.
 | 200 | Classification succeeded | `ClassificationResponse` (see example above) |
 | 400 | Whitespace-only `document_text`, or non-`.txt` upload | `{"detail": "document_text must not be empty"}` / `{"detail": "Only .txt files are supported"}` |
 | 401 | API key missing or invalid when enabled | `{"detail": "Invalid or missing API key"}` |
+| 413 | Raw request/upload exceeds the configured byte limit | `{"detail": "Request body exceeds ... bytes"}` |
 | 422 | Schema validation failure (missing field, length, top_k out of range) | FastAPI validation detail |
 | 503 | Model artifact missing/unloadable | `{"detail": "Model is unavailable"}` |
 | 500 | Unexpected inference failure | `{"detail": "Unexpected classification error"}` |
@@ -187,6 +188,8 @@ deployment:
 ENV_FOR_DYNACONF=production
 MODEL_PATH=/opt/models/classifier_v2.joblib   # model artifact location
 API__MAX_DOCUMENT_LENGTH=50000                # nested [api] keys use __
+API__MAX_FILE_UPLOAD_BYTES=200000
+API__MAX_REQUEST_BYTES=20000000
 API__MAX_BATCH_SIZE=100
 API__DEFAULT_TOP_K=5
 LOGGING__LEVEL=DEBUG                          # nested [logging] keys
@@ -258,11 +261,14 @@ endpoints return 401 when the API key is missing or invalid.
 ### Payload cap rationale
 
 `document_text` is capped at 100,000 characters (configurable via
-`API__MAX_DOCUMENT_LENGTH`). The cap bounds per-request memory and
-vectorization CPU, keeping tail latency predictable and preventing a
-single oversized payload from starving other requests. News articles
-fit comfortably under it; clients with longer documents should chunk
-them or raise the limit explicitly for their environment.
+`API__MAX_DOCUMENT_LENGTH`). Raw request bodies are separately capped in
+bytes (`API__MAX_REQUEST_BYTES`), and `.txt` uploads have a tighter file
+part cap (`API__MAX_FILE_UPLOAD_BYTES`). The service rejects oversized
+`Content-Length` values before parsing and also counts streamed bytes as
+they arrive, so missing or chunked lengths still cannot grow without
+bound. News articles fit comfortably under the defaults; clients with
+longer documents should chunk them or raise the limits explicitly for
+their environment.
 
 ### Future improvements
 
