@@ -41,7 +41,7 @@ def tiny_bundle() -> dict[str, Any]:
         "confidence_thresholds": {
             "auto_accept": 0.95,
             "manual_review": 0.70,
-            "other": 0.55,
+            "other": 0.15,
         },
     }
 

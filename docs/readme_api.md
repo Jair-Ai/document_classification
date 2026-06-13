@@ -80,9 +80,16 @@ model was trained on.
 | `decision` | `auto_accept`, `review_recommended`, `manual_review`, or `fallback_other` |
 | `top_k` | Top-k labels with confidences, sorted descending |
 
-Decision routing uses the thresholds shipped inside the model bundle
-(defaults: auto-accept at ≥ 0.90, review band down to 0.70, fallback to
-`"other"` below 0.55).
+Decision routing uses the confidence thresholds shipped inside the model
+bundle. The `other` fallback threshold is **tuned on the validation split
+by `src/evaluate.py`**, not a fixed constant — the value in
+`config/model.toml` is the declared seed, and
+`reports/threshold_selection.json` records the authoritative shipped
+values. At the current shipped policy, auto-accept fires at confidence
+≥ 0.90, the review band runs down to 0.70, and documents below 0.15 fall
+back to `"other"`. Clients should treat the returned `decision` field —
+not a hard-coded threshold — as the stable contract, since re-tuning can
+move the numeric boundaries.
 
 ### `POST /classify-file`
 

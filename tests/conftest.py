@@ -79,7 +79,7 @@ def fixture_bundle() -> dict[str, Any]:
         "confidence_thresholds": {
             "auto_accept": 0.9,
             "manual_review": 0.7,
-            "other": 0.55,
+            "other": 0.15,
         },
     }
 

@@ -1,7 +1,13 @@
 [thresholds]
+# Declared confidence-routing policy. `src/train.py` seeds the bundle with
+# these values; `src/evaluate.py` then re-tunes `other` on the validation
+# split and writes the authoritative shipped values to
+# reports/threshold_selection.json. tests/test_threshold_consistency.py
+# enforces that the committed artifact, this config, and the API docs all
+# agree, so if a retrain tunes `other` to a new value, update it here too.
 auto_accept = 0.90
 manual_review = 0.70
-other = 0.55
+other = 0.15
 
 [threshold_selection]
 other_min = 0.10

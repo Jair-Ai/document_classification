@@ -12,3 +12,6 @@ __pycache__/
 
 # Note: reports/*.csv, reports/*.json, and reports/*.txt are deliberately
 # tracked — small generated report artifacts are part of the deliverable.
+
+# Internal review-remediation working notes (not part of deliverable)
+docs/REVIEW_REMEDIATION.md
