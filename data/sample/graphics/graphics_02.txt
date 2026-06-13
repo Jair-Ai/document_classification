@@ -1,0 +1,1 @@
+Higher resolution textures sharpened every pixel in the final render. The artist rigged the model and baked normal maps for real-time shading. Vector shapes scale cleanly at any resolution without losing detail. Ray-traced reflections added depth to the rendered glass and metal surfaces.

@@ -1,0 +1,1 @@
+The design tool exports layered artwork for compositing and animation. Ray-traced reflections added depth to the rendered glass and metal surfaces. Anti-aliasing smoothed the jagged edges along the rendered geometry. The artist rigged the model and baked normal maps for real-time shading.

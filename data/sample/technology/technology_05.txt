@@ -1,0 +1,1 @@
+The startup's network hardware promises lower latency for data centers. Engineers open-sourced the framework to speed up machine learning research. The platform migrated its services to a distributed cloud architecture. The company released a software update that patched several security flaws.

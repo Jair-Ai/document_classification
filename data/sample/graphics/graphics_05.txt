@@ -1,0 +1,1 @@
+Vector shapes scale cleanly at any resolution without losing detail. The shader blends multiple textures to give the surface a weathered look. Ray-traced reflections added depth to the rendered glass and metal surfaces. The renderer traces light through the scene to produce photorealistic images.

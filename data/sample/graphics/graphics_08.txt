@@ -1,0 +1,1 @@
+Ray-traced reflections added depth to the rendered glass and metal surfaces. The 3D scene was lit with global illumination for soft, realistic shadows. The renderer traces light through the scene to produce photorealistic images. The GPU accelerated the rendering pipeline for smooth, high-frame-rate animation.

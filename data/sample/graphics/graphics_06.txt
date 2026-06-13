@@ -1,0 +1,1 @@
+The shader blends multiple textures to give the surface a weathered look. The design tool exports layered artwork for compositing and animation. The 3D scene was lit with global illumination for soft, realistic shadows. Higher resolution textures sharpened every pixel in the final render.

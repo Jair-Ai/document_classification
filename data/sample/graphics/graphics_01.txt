@@ -1,0 +1,1 @@
+The renderer traces light through the scene to produce photorealistic images. Higher resolution textures sharpened every pixel in the final render. The GPU accelerated the rendering pipeline for smooth, high-frame-rate animation. The design tool exports layered artwork for compositing and animation.

@@ -1,0 +1,1 @@
+The new chip doubles processor performance while using less power. Developers built the app on a scalable cloud computing platform. The startup's network hardware promises lower latency for data centers. The platform migrated its services to a distributed cloud architecture.

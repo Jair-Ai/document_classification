@@ -4,10 +4,13 @@
 # Model artifacts (large binaries; reproducible via src/train.py)
 models/*.joblib
 
-# Dataset: place the assessment dataset at data/trellis_assessment_ds to run
-# the ML pipeline. Contents are not committed; the folder is kept via .gitkeep.
+# Dataset: the full assessment dataset (data/trellis_assessment_ds) and any
+# other large/proprietary corpora are NOT committed; place them locally to run
+# the full pipeline. The small synthetic sample corpus (data/sample) IS tracked
+# so a clean clone can train a smoke model and serve predictions out of the box.
 /data/*
 !/data/.gitkeep
+!/data/sample/
 
 # Python caches
 __pycache__/

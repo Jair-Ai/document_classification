@@ -1,0 +1,1 @@
+The artist rigged the model and baked normal maps for real-time shading. The GPU accelerated the rendering pipeline for smooth, high-frame-rate animation. The shader blends multiple textures to give the surface a weathered look. The 3D scene was lit with global illumination for soft, realistic shadows.
