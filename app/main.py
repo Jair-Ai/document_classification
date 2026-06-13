@@ -107,9 +107,7 @@ def _classify(text: str, top_k: int, request: Request) -> ClassificationResponse
             "Unexpected error during classification (request_id=%s)",
             getattr(request.state, "request_id", "-"),
         )
-        raise HTTPException(
-            status_code=500, detail="Unexpected classification error"
-        ) from None
+        raise HTTPException(status_code=500, detail="Unexpected classification error") from None
 
     # Classification metadata for the per-request log line. The text is
     # summarized as length + hash; raw content is never logged.

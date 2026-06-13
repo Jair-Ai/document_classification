@@ -34,9 +34,7 @@ class TestHealth:
 
 class TestClassifyDocument:
     def test_valid_document_returns_full_response(self, client: TestClient) -> None:
-        response = client.post(
-            "/classify_document", json={"document_text": VALID_TEXT, "top_k": 2}
-        )
+        response = client.post("/classify_document", json={"document_text": VALID_TEXT, "top_k": 2})
 
         assert response.status_code == 200
         body = response.json()
@@ -67,9 +65,7 @@ class TestClassifyDocument:
         assert response.status_code == 200
         assert len(response.json()["top_k"]) == len(trained_labels)
 
-    def test_label_is_trained_or_other(
-        self, client: TestClient, trained_labels: list[str]
-    ) -> None:
+    def test_label_is_trained_or_other(self, client: TestClient, trained_labels: list[str]) -> None:
         response = client.post("/classify_document", json={"document_text": VALID_TEXT})
 
         assert response.status_code == 200
@@ -97,9 +93,7 @@ class TestValidationErrors:
         assert response.json() == {"detail": "document_text must not be empty"}
 
     def test_top_k_zero_returns_422(self, client: TestClient) -> None:
-        response = client.post(
-            "/classify_document", json={"document_text": VALID_TEXT, "top_k": 0}
-        )
+        response = client.post("/classify_document", json={"document_text": VALID_TEXT, "top_k": 0})
 
         assert response.status_code == 422
 
@@ -133,9 +127,7 @@ class TestInferenceFailure:
 
 class TestDegradedMode:
     def test_classify_without_model_returns_503(self, degraded_client: TestClient) -> None:
-        response = degraded_client.post(
-            "/classify_document", json={"document_text": VALID_TEXT}
-        )
+        response = degraded_client.post("/classify_document", json={"document_text": VALID_TEXT})
 
         assert response.status_code == 503
         assert response.json() == {"detail": "Model is unavailable"}
@@ -170,9 +162,7 @@ class TestClassifyFile:
         assert len(response.json()["top_k"]) == 2
 
     def test_non_txt_extension_returns_400(self, client: TestClient) -> None:
-        response = client.post(
-            "/classify-file", files=self._upload("doc.pdf", b"not a text file")
-        )
+        response = client.post("/classify-file", files=self._upload("doc.pdf", b"not a text file"))
 
         assert response.status_code == 400
         assert response.json() == {"detail": "Only .txt files are supported"}
@@ -197,15 +187,11 @@ class TestClassifyFile:
         assert response.json()["message"] == "Classification successful"
 
     def test_oversized_file_returns_422(self, client: TestClient) -> None:
-        response = client.post(
-            "/classify-file", files=self._upload("doc.txt", b"a" * 100_001)
-        )
+        response = client.post("/classify-file", files=self._upload("doc.txt", b"a" * 100_001))
 
         assert response.status_code == 422
 
-    def test_file_upload_without_model_returns_503(
-        self, degraded_client: TestClient
-    ) -> None:
+    def test_file_upload_without_model_returns_503(self, degraded_client: TestClient) -> None:
         response = degraded_client.post(
             "/classify-file", files=self._upload("doc.txt", VALID_TEXT.encode("utf-8"))
         )

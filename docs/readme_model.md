@@ -108,9 +108,9 @@ Measured on the local evaluation run:
 
 | Benchmark | Value |
 |---|---:|
-| Median single-document latency | 0.3358 ms |
-| p95 single-document latency | 0.5080 ms |
-| Batch throughput | 4672.16 docs/sec |
+| Median single-document latency | 0.3282 ms |
+| p95 single-document latency | 0.5489 ms |
+| Batch throughput | 4876.28 docs/sec |
 | Batch size used | 149 docs |
 | Serialized bundle size | 2.07 MB |
 

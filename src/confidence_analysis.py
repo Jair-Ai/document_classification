@@ -89,7 +89,7 @@ def threshold_tradeoffs(
         other_caught = int((other_conf < threshold).sum())
         rows.append(
             ThresholdTradeoff(
-                threshold=threshold,
+                threshold=float(threshold),
                 known_docs=int(len(known_conf)),
                 known_misrouted_to_other=known_misrouted,
                 known_misrouted_pct=round(known_misrouted / len(known_conf), 4),
